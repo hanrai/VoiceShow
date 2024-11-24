@@ -16,11 +16,11 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
 }) => {
   return (
     <div className="space-y-2 mt-6">
-      {/* 频谱图 */}
-      <div className="h-32">
+      {/* 频谱图 - 减小高度 */}
+      <div className="h-24">
         <ScrollingVisualizer
           data={spectrumData}
-          height={128}
+          height={96}
           color="200"
           renderType="spectrum"
           minValue={-100}
@@ -28,11 +28,11 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
         />
       </div>
 
-      {/* MFCC图 */}
-      <div className="h-32">
+      {/* MFCC图 - 减小高度 */}
+      <div className="h-24">
         <ScrollingVisualizer
           data={mfccData}
-          height={128}
+          height={96}
           color="0"
           renderType="heatmap"
           minValue={-80}
@@ -41,10 +41,10 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
       </div>
 
       {/* 音高图 */}
-      <div className="h-16">
+      <div className="h-12">
         <ScrollingVisualizer
           data={pitchData}
-          height={64}
+          height={48}
           color="#60A5FA"
           renderType="line"
           minValue={20}
@@ -53,10 +53,10 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
       </div>
 
       {/* 响度图 */}
-      <div className="h-16">
+      <div className="h-12">
         <ScrollingVisualizer
           data={loudnessData}
-          height={64}
+          height={48}
           color="#34D399"
           renderType="line"
           minValue={-60}

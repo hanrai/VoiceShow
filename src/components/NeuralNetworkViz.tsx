@@ -16,7 +16,7 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({ isProcessing
     const svg = d3.select(svgRef.current);
     const width = svgRef.current.clientWidth;
     const height = svgRef.current.clientHeight;
-    
+
     svg.selectAll('*').remove();
 
     // Calculate positions
@@ -29,9 +29,9 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({ isProcessing
     // Draw connections
     layers.forEach((nodeCount, layerIndex) => {
       if (layerIndex === layers.length - 1) return;
-      
+
       const nextLayerNodes = layers[layerIndex + 1];
-      
+
       for (let node = 0; node < nodeCount; node++) {
         for (let nextNode = 0; nextNode < nextLayerNodes; nextNode++) {
           svg.append('line')
@@ -60,18 +60,22 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({ isProcessing
   }, [isProcessing]);
 
   return (
-    <div className="relative w-full h-64 bg-gray-800/50 rounded-lg overflow-hidden">
-      <svg
-        ref={svgRef}
-        className="w-full h-full"
-      />
-      {isProcessing && (
-        <motion.div
-          className="absolute inset-0 bg-purple-500/10"
-          animate={{ opacity: [0, 0.2, 0] }}
-          transition={{ duration: 1, repeat: Infinity }}
-        />
-      )}
+    <div className="bg-gray-800 rounded-lg p-4">
+      <div className="h-32">
+        <div className="relative w-full h-64 bg-gray-800/50 rounded-lg overflow-hidden">
+          <svg
+            ref={svgRef}
+            className="w-full h-full"
+          />
+          {isProcessing && (
+            <motion.div
+              className="absolute inset-0 bg-purple-500/10"
+              animate={{ opacity: [0, 0.2, 0] }}
+              transition={{ duration: 1, repeat: Infinity }}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 };

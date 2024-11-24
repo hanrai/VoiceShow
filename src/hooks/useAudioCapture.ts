@@ -8,17 +8,24 @@ export const useAudioCapture = () => {
 	const analyserRef = useRef<AnalyserNode | null>(null);
 	const animationFrameRef = useRef<number>();
 	const dataArrayRef = useRef<Float32Array>();
+	const isMountedRef = useRef(true);
 
 	const updateData = useCallback(() => {
-		if (!analyserRef.current || !dataArrayRef.current) return;
+		if (!analyserRef.current || !dataArrayRef.current || !isMountedRef.current)
+			return;
 
 		analyserRef.current.getFloatTimeDomainData(dataArrayRef.current);
-		setAudioData(new Float32Array(dataArrayRef.current));
+		const newData = new Float32Array(dataArrayRef.current);
 
-		animationFrameRef.current = requestAnimationFrame(updateData);
+		if (isMountedRef.current) {
+			setAudioData(newData);
+			animationFrameRef.current = requestAnimationFrame(updateData);
+		}
 	}, []);
 
 	const startCapture = useCallback(async () => {
+		if (audioContextRef.current) return;
+
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
@@ -40,7 +47,10 @@ export const useAudioCapture = () => {
 	}, [updateData]);
 
 	useEffect(() => {
+		isMountedRef.current = true;
+
 		return () => {
+			isMountedRef.current = false;
 			if (animationFrameRef.current) {
 				cancelAnimationFrame(animationFrameRef.current);
 			}
