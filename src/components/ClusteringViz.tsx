@@ -1,62 +1,89 @@
-import React, { useEffect, useRef } from 'react';
-import * as d3 from 'd3';
-import { motion } from 'framer-motion';
+import React, { useEffect, useRef, useState } from 'react';
+import { KMeans } from '../utils/kmeans';
 
 interface ClusteringVizProps {
-  isProcessing: boolean;
+  mfccData: number[];
+  pitchData: number[];
+  timestamp: number;
 }
 
-export const ClusteringViz: React.FC<ClusteringVizProps> = ({ isProcessing }) => {
-  const svgRef = useRef<SVGSVGElement>(null);
+export const ClusteringViz: React.FC<ClusteringVizProps> = ({
+  mfccData,
+  pitchData,
+  timestamp
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pointsRef = useRef<{ features: number[], timestamp: number }[]>([]);
+  const kmeans = useRef(new KMeans(3, 10));
+  const colors = ['#60A5FA', '#34D399', '#F87171'];
 
   useEffect(() => {
-    if (!svgRef.current) return;
+    if (!mfccData.length || !pitchData.length) return;
 
-    const svg = d3.select(svgRef.current);
-    const width = svgRef.current.clientWidth;
-    const height = svgRef.current.clientHeight;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    svg.selectAll('*').remove();
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    // Generate random cluster data
-    const clusters = [
-      { label: '男性咳嗽', color: '#60A5FA' },
-      { label: '女性咳嗽', color: '#F472B6' },
-      { label: '儿童咳嗽', color: '#34D399' },
+    // 准备特征向量（使用前两个MFCC系数和音高）
+    const features = [
+      mfccData[0] / 80, // 归一化MFCC
+      mfccData[1] / 80,
+      pitchData[0] / 400 // 归一化音高
     ];
 
+    // 添加新点
+    pointsRef.current.push({ features, timestamp });
+
+    // 保持最近10秒的数据
+    const cutoffTime = timestamp - 10000;
+    pointsRef.current = pointsRef.current.filter(p => p.timestamp > cutoffTime);
+
+    // 执行聚类
+    const clusters = kmeans.current.cluster(pointsRef.current);
+
+    // 绘制
+    ctx.fillStyle = '#1F2937';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 绘制点和质心
     clusters.forEach((cluster, i) => {
-      const points = Array.from({ length: 10 }, () => ({
-        x: Math.random() * width * 0.8 + width * 0.1,
-        y: Math.random() * height * 0.8 + height * 0.1,
-      }));
+      const color = colors[i];
 
-      svg.selectAll(`.cluster-${i}`)
-        .data(points)
-        .join('circle')
-        .attr('class', `cluster-${i}`)
-        .attr('cx', d => d.x)
-        .attr('cy', d => d.y)
-        .attr('r', 4)
-        .attr('fill', cluster.color)
-        .attr('opacity', 0.6);
+      // 绘制点
+      cluster.points.forEach(point => {
+        const x = point.features[0] * canvas.width;
+        const y = point.features[1] * canvas.height;
 
-      // Add label
-      svg.append('text')
-        .attr('x', width * 0.1 + (i * width * 0.3))
-        .attr('y', height - 10)
-        .attr('fill', cluster.color)
-        .attr('font-size', '12px')
-        .text(cluster.label);
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      });
+
+      // 绘制质心
+      if (cluster.points.length > 0) {
+        const x = cluster.centroid[0] * canvas.width;
+        const y = cluster.centroid[1] * canvas.height;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     });
 
-  }, [isProcessing]);
+  }, [mfccData, pitchData, timestamp]);
 
   return (
-    <div className="relative w-full h-48 bg-gray-800 rounded-lg p-4">
-      <svg
-        ref={svgRef}
-        className="w-full h-full"
+    <div className="bg-gray-800 rounded-lg p-4">
+      <canvas
+        ref={canvasRef}
+        width={400}
+        height={200}
+        className="w-full rounded-lg"
       />
     </div>
   );

@@ -9,34 +9,28 @@ import { AudioFeatures } from './components/AudioFeatures';
 
 function App() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const { audioData, startCapture, isCapturing } = useAudioCapture();
+  const {
+    audioData,
+    spectrumData,
+    mfccData,
+    pitchData,
+    loudnessData,
+    startCapture,
+    isCapturing
+  } = useAudioCapture();
+  const [timestamp, setTimestamp] = useState(Date.now());
 
-  // 添加音频特征数据的状态
-  const [spectrumData, setSpectrumData] = useState<number[]>([]);
-  const [mfccData, setMfccData] = useState<number[]>([]);
-  const [pitchData, setPitchData] = useState<number[]>([]);
-  const [loudnessData, setLoudnessData] = useState<number[]>([]);
-
-  // 移除 startCapture 的依赖
   useEffect(() => {
     startCapture();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 使用 useRef 来跟踪上一次的音频数据
-  const lastAudioDataRef = useRef<Float32Array | null>(null);
-
-  // 直接监听 audioData 的变化
   useEffect(() => {
-    // 检查数据是否真的变化了
-    if (!audioData || audioData === lastAudioDataRef.current) return;
-    lastAudioDataRef.current = audioData;
+    const timer = setInterval(() => {
+      setTimestamp(Date.now());
+    }, 1000 / 48); // 48fps
 
-    // 直接更新特征数据
-    setSpectrumData(Array(128).fill(0).map(() => Math.random() * 100 - 100));
-    setMfccData(Array(64).fill(0).map(() => Math.random() * 160 - 80));
-    setPitchData([Math.random() * 1980 + 20]);
-    setLoudnessData([Math.random() * 60 - 60]);
-  }, [audioData]); // 只依赖 audioData
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white p-4">
@@ -51,15 +45,19 @@ function App() {
             </div>
           </div>
           <AudioFeatures
-            spectrumData={spectrumData}
-            mfccData={mfccData}
+            spectrumData={spectrumData ? Array.from(spectrumData) : []}
+            mfccData={mfccData || []}
             pitchData={pitchData}
             loudnessData={loudnessData}
           />
         </div>
 
         <NeuralNetworkViz isProcessing={isProcessing} />
-        <ClusteringViz isProcessing={isProcessing} />
+        <ClusteringViz
+          mfccData={mfccData || []}
+          pitchData={pitchData}
+          timestamp={timestamp}
+        />
       </div>
     </div>
   );

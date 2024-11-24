@@ -7,7 +7,7 @@ interface AudioVisualizerProps {
 export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ data }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<Float32Array[]>([]);
-  const MAX_HISTORY = 20 * 48; // 20秒 * 48帧/秒
+  const MAX_HISTORY = 10 * 48; // 10秒 * 48帧/秒
 
   useEffect(() => {
     // 更新历史数据
