@@ -1,0 +1,102 @@
+# React/TypeScript
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.venv
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# PyTorch
+*.pth
+*.pt
+*.bin
+.pytorch/
+torch.save/
+*.onnx
+lightning_logs/
+wandb/
+
+# Hugging Face
+.cache/
+.huggingface/
+pretrained_models/
+checkpoints/
+runs/
+
+# 数据文件
+*.csv
+*.h5
+*.hdf5
+*.pkl
+*.db
+*.sqlite
+*.sqlite3
+
+# 日志文件
+logs/
+*.log
+log.txt
+
+# 临时文件
+tmp/
+temp/
+.temp/
+*.tmp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.bak
+*.swp
+*.swo
+
+# 其他
+.history/
+.git/
+*.zip
+*.tar.gz
+*.rar
+*.7z
