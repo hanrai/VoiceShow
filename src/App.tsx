@@ -56,6 +56,7 @@ function App() {
         <ClusteringViz
           mfccData={mfccData || []}
           pitchData={pitchData}
+          loudnessData={loudnessData}
           timestamp={timestamp}
         />
       </div>

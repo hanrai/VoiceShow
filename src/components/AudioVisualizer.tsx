@@ -4,70 +4,88 @@ interface AudioVisualizerProps {
   data: Float32Array;
 }
 
+declare const echarts: any;
+
 export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ data }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const historyRef = useRef<Float32Array[]>([]);
-  const MAX_HISTORY = 10 * 48; // 10秒 * 48帧/秒
+  const chartRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<any>();
+  const historyRef = useRef<number[][]>([]);
+  const MAX_HISTORY = 10 * 48;
+  const lastDrawTimeRef = useRef<number>(Date.now());
+  const FRAME_INTERVAL = 1000 / 48; // 48fps
 
   useEffect(() => {
-    // 更新历史数据
-    historyRef.current.push(new Float32Array(data));
+    const currentTime = Date.now();
+    if (currentTime - lastDrawTimeRef.current < FRAME_INTERVAL) {
+      return;
+    }
+    lastDrawTimeRef.current = currentTime;
+
+    // 初始化图表
+    if (chartRef.current && !chartInstanceRef.current) {
+      chartInstanceRef.current = echarts.init(chartRef.current);
+      window.addEventListener('resize', () => {
+        chartInstanceRef.current?.resize();
+      });
+    }
+
+    // 更新数据
+    const amplitude = Array.from(data).reduce((sum, val) => sum + Math.abs(val), 0) / data.length;
+    historyRef.current.push([amplitude]);
     if (historyRef.current.length > MAX_HISTORY) {
       historyRef.current.shift();
     }
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    // 配置项
+    const option = {
+      animation: false,
+      grid: {
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0
+      },
+      xAxis: {
+        type: 'category',
+        show: false,
+        data: Array.from({ length: MAX_HISTORY }, (_, i) => i)
+      },
+      yAxis: {
+        type: 'value',
+        show: false,
+        min: 0,
+        max: 1
+      },
+      series: [{
+        type: 'line',
+        data: historyRef.current.map(d => d[0]),
+        smooth: true,
+        symbol: 'none',
+        lineStyle: {
+          color: '#60A5FA',
+          width: 2
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(96, 165, 250, 0.5)' },
+            { offset: 1, color: 'rgba(96, 165, 250, 0)' }
+          ])
+        }
+      }]
+    };
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // 清除画布
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 绘制波形
-    const sliceWidth = canvas.width / MAX_HISTORY;
-    const centerY = canvas.height / 2;
-    const amplitudeScale = canvas.height * 0.45; // 留出一些边距
-
-    ctx.beginPath();
-    ctx.strokeStyle = '#60A5FA';
-    ctx.lineWidth = 2;
-
-    // 绘制历史数据
-    historyRef.current.forEach((frameData, frameIndex) => {
-      // 计算每帧的平均振幅
-      const amplitude = frameData.reduce((sum, val) => sum + Math.abs(val), 0) / frameData.length;
-
-      const x = frameIndex * sliceWidth;
-      const y = centerY + (amplitude * amplitudeScale);
-
-      if (frameIndex === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
-
-    ctx.stroke();
-
-    // 添加渐变效果
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
-    gradient.addColorStop(0, 'rgba(96, 165, 250, 0)');
-    gradient.addColorStop(0.1, 'rgba(96, 165, 250, 1)');
-    gradient.addColorStop(1, 'rgba(96, 165, 250, 1)');
-
-    ctx.strokeStyle = gradient;
-    ctx.stroke();
-
+    chartInstanceRef.current?.setOption(option);
   }, [data]);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      width={800}
-      height={64}
-      className="w-full h-full"
-    />
-  );
+  // 清理
+  useEffect(() => {
+    return () => {
+      chartInstanceRef.current?.dispose();
+      window.removeEventListener('resize', () => {
+        chartInstanceRef.current?.resize();
+      });
+    };
+  }, []);
+
+  return <div ref={chartRef} className="w-full h-full" />;
 };

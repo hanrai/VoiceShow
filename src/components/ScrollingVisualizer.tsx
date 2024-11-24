@@ -73,20 +73,27 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<number[][]>([]);
+  const lastDrawTimeRef = useRef<number>(Date.now());
   const MAX_HISTORY = 10 * 48;
+  const FRAME_INTERVAL = 1000 / 48;
 
-  // 添加动态范围追踪
-  const rangeRef = useRef({ min: minValue, max: maxValue });
+  // 动态范围追踪
+  const rangeRef = useRef({
+    min: minValue,
+    max: maxValue,
+    lastUpdate: Date.now()
+  });
 
   useEffect(() => {
     if (!data?.length) return;
 
-    // 如果是频谱图，根据最大频率限制数据
-    const processedData = renderType === 'spectrum'
-      ? data.slice(0, Math.floor((data.length * maxFreq) / 22050))
-      : data;
+    const currentTime = Date.now();
+    if (currentTime - lastDrawTimeRef.current < FRAME_INTERVAL) {
+      return;
+    }
+    lastDrawTimeRef.current = currentTime;
 
-    historyRef.current.push([...processedData]);
+    historyRef.current.push([...data]);
     if (historyRef.current.length > MAX_HISTORY) {
       historyRef.current.shift();
     }
@@ -101,13 +108,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (renderType === 'line') {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-
-      let isDrawing = false;
-      const sliceWidth = canvas.width / MAX_HISTORY;
-
-      // 对于音高图，动态计算显示范围
+      // 对于音高图，动态调整显示范围
       if (historyRef.current.length > 0) {
         const validValues = historyRef.current
           .flatMap(frame => frame)
@@ -116,91 +117,95 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
         if (validValues.length > 0) {
           const currentMin = Math.min(...validValues);
           const currentMax = Math.max(...validValues);
+          const timeSinceLastUpdate = currentTime - rangeRef.current.lastUpdate;
 
           // 平滑过渡到新的范围
-          rangeRef.current.min = Math.min(rangeRef.current.min, currentMin * 0.9);
-          rangeRef.current.max = Math.max(rangeRef.current.max, currentMax * 1.1);
+          const transitionSpeed = 0.1; // 调整过渡速度
+          rangeRef.current.min = Math.min(
+            rangeRef.current.min,
+            currentMin * 0.9
+          );
+          rangeRef.current.max = Math.max(
+            rangeRef.current.max,
+            currentMax * 1.1
+          );
 
-          // 如果没有最近的数据点超过范围，逐渐收缩范围
-          const recentValues = historyRef.current.slice(-10).flatMap(frame => frame).filter(value => value > 0);
-          if (recentValues.length > 0) {
-            const recentMin = Math.min(...recentValues);
-            const recentMax = Math.max(...recentValues);
-            rangeRef.current.min = rangeRef.current.min * 0.95 + recentMin * 0.05;
-            rangeRef.current.max = rangeRef.current.max * 0.95 + recentMax * 0.05;
+          // 如果一段时间没有新的极值，逐渐收缩范围
+          if (timeSinceLastUpdate > 1000) { // 1秒
+            const recentValues = historyRef.current
+              .slice(-10)
+              .flatMap(frame => frame)
+              .filter(value => value > 0);
+
+            if (recentValues.length > 0) {
+              const recentMin = Math.min(...recentValues);
+              const recentMax = Math.max(...recentValues);
+
+              rangeRef.current.min = rangeRef.current.min * (1 - transitionSpeed) +
+                recentMin * transitionSpeed;
+              rangeRef.current.max = rangeRef.current.max * (1 - transitionSpeed) +
+                recentMax * transitionSpeed;
+            }
           }
         }
       }
 
-      historyRef.current.forEach((frameData, i) => {
-        const x = i * sliceWidth;
+      // 绘制音高线
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+
+      historyRef.current.forEach((frameData, timeIndex) => {
+        const x = (timeIndex * canvas.width) / MAX_HISTORY;
         const value = frameData[0];
 
-        if (value === 0) {
-          isDrawing = false;
-          return;
-        }
+        if (value === 0) return;
 
         // 使用动态范围进行归一化
         const normalizedValue = (value - rangeRef.current.min) /
           (rangeRef.current.max - rangeRef.current.min);
 
-        // 确保y值在画布范围内，并留出边距
-        const margin = height * 0.1; // 10% 边距
-        const y = Math.max(margin, Math.min(height - margin,
-          height - (normalizedValue * (height - 2 * margin)) - margin));
+        // 添加边距
+        const margin = height * 0.1;
+        const y = Math.max(
+          margin,
+          Math.min(
+            height - margin,
+            height - (normalizedValue * (height - 2 * margin)) - margin
+          )
+        );
 
-        if (!isDrawing) {
-          ctx.beginPath();
+        if (timeIndex === 0 || historyRef.current[timeIndex - 1][0] === 0) {
           ctx.moveTo(x, y);
-          isDrawing = true;
         } else {
           ctx.lineTo(x, y);
         }
-
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x, y);
       });
+
+      ctx.stroke();
     }
     else if (renderType === 'spectrum' || renderType === 'heatmap') {
-      const sliceWidth = canvas.width / MAX_HISTORY;
-
-      // 创建梅尔频率刻度（仅用于频谱图）
-      const melScale = renderType === 'spectrum'
-        ? createMelScale(20, maxFreq, processedData.length)
-        : null;
-
+      // 绘制所有历史数据
       historyRef.current.forEach((frameData, timeIndex) => {
+        const x = (timeIndex * canvas.width) / MAX_HISTORY;
+        const sliceWidth = canvas.width / MAX_HISTORY;
+
         frameData.forEach((value, freqIndex) => {
           const normalizedValue = (value - minValue) / (maxValue - minValue);
-          const x = timeIndex * sliceWidth;
-
-          // 计算y坐标
-          let y;
-          if (renderType === 'spectrum' && melScale) {
-            // 使用梅尔比例尺
-            const melPos = melScale[freqIndex] / maxFreq; // 归一化到[0,1]
-            y = height - (melPos * height);
-          } else {
-            // MFCC保持线性比例
-            const binHeight = height / processedData.length;
-            y = freqIndex * binHeight;
-          }
-
-          // 计算高度
-          const binHeight = renderType === 'spectrum' && melScale
-            ? (height / processedData.length) * (melScale[freqIndex + 1] - melScale[freqIndex]) / maxFreq
-            : height / processedData.length;
+          const binHeight = height / frameData.length;
 
           if (renderType === 'spectrum') {
+            // 频谱图从下到上绘制
+            const y = height - ((freqIndex + 1) * binHeight);
             ctx.fillStyle = getViridisColor(normalizedValue);
+            ctx.fillRect(x, y, sliceWidth - 0.5, binHeight - 0.5);
           } else {
+            // MFCC热力图从上到下绘制
+            const y = freqIndex * binHeight;
             const hue = Math.max(0, Math.min(240, (1 - normalizedValue) * 240));
             ctx.fillStyle = `hsla(${hue}, 100%, 50%, 0.8)`;
+            ctx.fillRect(x, y, sliceWidth - 0.5, binHeight - 0.5);
           }
-
-          ctx.fillRect(x, y, sliceWidth - 0.5, Math.max(1, binHeight));
         });
       });
     }

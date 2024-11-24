@@ -1,90 +1,154 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
+import * as d3 from 'd3';
 import { KMeans } from '../utils/kmeans';
 
 interface ClusteringVizProps {
   mfccData: number[];
   pitchData: number[];
+  loudnessData: number[];
   timestamp: number;
 }
 
 export const ClusteringViz: React.FC<ClusteringVizProps> = ({
   mfccData,
   pitchData,
+  loudnessData,
   timestamp
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const pointsRef = useRef<{ features: number[], timestamp: number }[]>([]);
   const kmeans = useRef(new KMeans(3, 10));
   const colors = ['#60A5FA', '#34D399', '#F87171'];
 
   useEffect(() => {
-    if (!mfccData.length || !pitchData.length) return;
+    if (!mfccData?.length || !pitchData?.length || !loudnessData?.length || !svgRef.current) return;
+    if (mfccData.length < 4) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const svg = d3.select(svgRef.current);
+    const width = svgRef.current.clientWidth;
+    const height = svgRef.current.clientHeight;
+    const margin = { top: 5, right: 5, bottom: 5, left: 5 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    try {
+      const features = [
+        mfccData[0] / 80 || 0,
+        mfccData[1] / 80 || 0,
+        mfccData[2] / 80 || 0,
+        mfccData[3] / 80 || 0,
+        (pitchData[0] || 0) / 400,
+        ((loudnessData[0] || -60) + 60) / 60,
+        Math.abs(mfccData[0] - (pointsRef.current[pointsRef.current.length - 1]?.features[0] || mfccData[0])) || 0,
+        Math.abs(mfccData[1] - (pointsRef.current[pointsRef.current.length - 1]?.features[1] || mfccData[1])) || 0
+      ];
 
-    // 准备特征向量（使用前两个MFCC系数和音高）
-    const features = [
-      mfccData[0] / 80, // 归一化MFCC
-      mfccData[1] / 80,
-      pitchData[0] / 400 // 归一化音高
-    ];
+      pointsRef.current.push({ features, timestamp });
+      const cutoffTime = timestamp - 10000;
+      pointsRef.current = pointsRef.current.filter(p => p.timestamp > cutoffTime);
 
-    // 添加新点
-    pointsRef.current.push({ features, timestamp });
+      if (pointsRef.current.length < 3) return;
 
-    // 保持最近10秒的数据
-    const cutoffTime = timestamp - 10000;
-    pointsRef.current = pointsRef.current.filter(p => p.timestamp > cutoffTime);
+      const clusters = kmeans.current.cluster(pointsRef.current);
+      svg.selectAll('*').remove();
 
-    // 执行聚类
-    const clusters = kmeans.current.cluster(pointsRef.current);
+      const plot = svg.append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // 绘制
-    ctx.fillStyle = '#1F2937';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // 计算2D投影并找到边界
+      const points2D = pointsRef.current.map(point => ({
+        x: point.features[0] * 0.6 + point.features[1] * 0.4,
+        y: point.features[2] * 0.6 + point.features[3] * 0.4,
+        features: point.features
+      }));
 
-    // 绘制点和质心
-    clusters.forEach((cluster, i) => {
-      const color = colors[i];
+      // 创建比例尺
+      const xExtent = d3.extent(points2D, d => d.x) as [number, number];
+      const yExtent = d3.extent(points2D, d => d.y) as [number, number];
 
-      // 绘制点
-      cluster.points.forEach(point => {
-        const x = point.features[0] * canvas.width;
-        const y = point.features[1] * canvas.height;
+      // 增加边距比例
+      const padding = 0.2;
+      const xRange = xExtent[1] - xExtent[0] || 1;
+      const yRange = yExtent[1] - yExtent[0] || 1;
 
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
+      const xScale = d3.scaleLinear()
+        .domain([
+          xExtent[0] - xRange * padding,
+          xExtent[1] + xRange * padding
+        ])
+        .range([0, plotWidth]);
+
+      const yScale = d3.scaleLinear()
+        .domain([
+          yExtent[0] - yRange * padding,
+          yExtent[1] + yRange * padding
+        ])
+        .range([plotHeight, 0]);
+
+      // 绘制聚类
+      clusters.forEach((cluster, i) => {
+        const color = colors[i];
+
+        if (cluster.points.length > 1) {
+          const clusterPoints2D = cluster.points
+            .map(p => points2D.find(p2d => p2d.features === p.features))
+            .filter((p): p is { x: number; y: number; features: number[] } => p !== undefined);
+
+          // 减小连接线的数量
+          const samplePoints = clusterPoints2D.filter(() => Math.random() < 0.5);
+
+          samplePoints.forEach(point => {
+            plot.append('line')
+              .attr('x1', xScale(point.x))
+              .attr('y1', yScale(point.y))
+              .attr('x2', xScale(cluster.centroid[0]))
+              .attr('y2', yScale(cluster.centroid[1]))
+              .attr('stroke', color)
+              .attr('stroke-width', 0.5)
+              .attr('stroke-opacity', 0.1);
+          });
+        }
+
+        // 绘制点
+        cluster.points.forEach(point => {
+          const point2D = points2D.find(p2d => p2d.features === point.features);
+          if (!point2D) return;
+
+          plot.append('circle')
+            .attr('cx', xScale(point2D.x))
+            .attr('cy', yScale(point2D.y))
+            .attr('r', 3)
+            .attr('fill', color)
+            .attr('fill-opacity', 0.7);
+        });
+
+        // 绘制质心
+        if (cluster.points.length > 0) {
+          plot.append('circle')
+            .attr('cx', xScale(cluster.centroid[0]))
+            .attr('cy', yScale(cluster.centroid[1]))
+            .attr('r', 4)
+            .attr('stroke', color)
+            .attr('stroke-width', 1.5)
+            .attr('fill', 'none');
+        }
       });
-
-      // 绘制质心
-      if (cluster.points.length > 0) {
-        const x = cluster.centroid[0] * canvas.width;
-        const y = cluster.centroid[1] * canvas.height;
-
-        ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI * 2);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-    });
-
-  }, [mfccData, pitchData, timestamp]);
+    } catch (error) {
+      console.error('Error in ClusteringViz:', error);
+    }
+  }, [mfccData, pitchData, loudnessData, timestamp]);
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <canvas
-        ref={canvasRef}
-        width={400}
-        height={200}
-        className="w-full rounded-lg"
-      />
+      <div className="h-24">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${800} ${96}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="w-full h-full"
+          style={{ background: '#1F2937' }}
+        />
+      </div>
     </div>
   );
 };
