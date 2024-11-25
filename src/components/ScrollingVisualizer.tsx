@@ -126,7 +126,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
   const historyRef = useRef<number[][]>([]);
   const lastDrawTimeRef = useRef<number>(Date.now());
   const emaRef = useRef<number>(0);
-  const rangeRef = useRef({ min: minValue, max: maxValue });
+  const displayRangeRef = useRef<{ min: number; max: number }>({ min: minValue, max: maxValue });
   const MAX_HISTORY = 10 * 48;
   const FRAME_INTERVAL = 1000 / 48;
 
@@ -140,6 +140,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
     lastDrawTimeRef.current = currentTime;
 
     if (renderType === 'line') {
+      // 计算当前值
       if (!isEnergy) {
         let maxEnergy = -Infinity;
         let maxFreqIndex = 0;
@@ -157,39 +158,44 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
         emaRef.current = calculateEMA(data[0], emaRef.current, smoothingFactor);
       }
 
-      const RANGE_SMOOTHING = 0.05;
-      const PADDING_FACTOR = 0.2;
-
-      const recentValues = historyRef.current
-        .slice(-20)
-        .map(frame => frame[0])
-        .filter(v => v !== undefined);
-
-      if (recentValues.length > 0) {
-        const currentMin = Math.min(...recentValues);
-        const currentMax = Math.max(...recentValues);
-        const range = currentMax - currentMin;
-        const padding = range * PADDING_FACTOR;
-
-        rangeRef.current.min = calculateEMA(
-          currentMin - padding,
-          rangeRef.current.min,
-          RANGE_SMOOTHING
-        );
-        rangeRef.current.max = calculateEMA(
-          currentMax + padding,
-          rangeRef.current.max,
-          RANGE_SMOOTHING
-        );
+      historyRef.current.push([emaRef.current]);
+      if (historyRef.current.length > MAX_HISTORY) {
+        historyRef.current.shift();
       }
 
-      historyRef.current.push([emaRef.current]);
+      // 动态更新显示范围
+      const allValues = historyRef.current.map(frame => frame[0]);
+      const currentMin = Math.min(...allValues);
+      const currentMax = Math.max(...allValues);
+      const range = currentMax - currentMin;
+      const padding = range * 0.2;
+
+      // 只有当新值超出当前范围时才扩展范围
+      displayRangeRef.current = {
+        min: Math.min(displayRangeRef.current.min, currentMin - padding),
+        max: Math.max(displayRangeRef.current.max, currentMax + padding)
+      };
+
+      // 缓慢收缩范围以适应新的数据
+      const RANGE_SHRINK_FACTOR = 0.001; // 非常缓慢的收缩
+      const recentValues = historyRef.current.slice(-20).map(frame => frame[0]);
+      const recentMin = Math.min(...recentValues);
+      const recentMax = Math.max(...recentValues);
+      const recentPadding = (recentMax - recentMin) * 0.2;
+
+      displayRangeRef.current = {
+        min: displayRangeRef.current.min + 
+          (Math.max(recentMin - recentPadding, minValue) - displayRangeRef.current.min) * 
+          RANGE_SHRINK_FACTOR,
+        max: displayRangeRef.current.max + 
+          (Math.min(recentMax + recentPadding, maxValue) - displayRangeRef.current.max) * 
+          RANGE_SHRINK_FACTOR
+      };
     } else {
       historyRef.current.push([...data]);
-    }
-
-    if (historyRef.current.length > MAX_HISTORY) {
-      historyRef.current.shift();
+      if (historyRef.current.length > MAX_HISTORY) {
+        historyRef.current.shift();
+      }
     }
 
     const canvas = canvasRef.current;
@@ -210,8 +216,8 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
         const x = (timeIndex * canvas.width) / MAX_HISTORY;
         const value = frameData[0];
 
-        const normalizedValue = (value - rangeRef.current.min) / 
-          (rangeRef.current.max - rangeRef.current.min);
+        const normalizedValue = (value - displayRangeRef.current.min) / 
+          (displayRangeRef.current.max - displayRangeRef.current.min);
         
         const margin = height * 0.1;
         const y = Math.max(
@@ -231,6 +237,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
 
       ctx.stroke();
 
+      // 显示当前值和范围
       const currentValue = historyRef.current[historyRef.current.length - 1]?.[0];
       if (currentValue !== undefined) {
         ctx.fillStyle = '#ffffff';
