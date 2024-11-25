@@ -14,6 +14,23 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
   pitchData,
   loudnessData
 }) => {
+  // 修改频谱的总能量计算方法
+  const calculateTotalEnergy = (spectrum: number[]): number => {
+    if (!spectrum?.length) return 0;
+    
+    // 直接使用dB值计算平均能量
+    const validValues = spectrum.filter(value => 
+      !isNaN(value) && isFinite(value) && value > -100  // 过滤掉无效值和极小值
+    );
+    
+    if (validValues.length === 0) return -100;  // 如果没有有效值，返回最小值
+    
+    // 计算平均能量（dB域）
+    const avgEnergy = validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
+    
+    return avgEnergy;
+  };
+
   return (
     <div className="space-y-2 mt-6">
       {/* 频谱图 */}
@@ -44,10 +61,10 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
         />
       </div>
 
-      {/* 音高图 - 现在显示主频率的EMA */}
+      {/* 音高图 - 主频率的EMA */}
       <div className="h-12">
         <ScrollingVisualizer
-          data={spectrumData}  // 使用频谱数据而不是音高数据
+          data={spectrumData}
           height={48}
           color="#60A5FA"
           renderType="line"
@@ -55,20 +72,23 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
           maxValue={400}
           maxFreq={8000}
           backgroundColor="#1a1a1a"
-          smoothingFactor={0.15}  // 添加平滑因子
+          smoothingFactor={0.15}
         />
       </div>
 
-      {/* 响度图 */}
+      {/* 总能量移动均线 - 修改显示范围 */}
       <div className="h-12">
         <ScrollingVisualizer
-          data={loudnessData}
+          data={[calculateTotalEnergy(spectrumData)]}
           height={48}
           color="#34D399"
           renderType="line"
-          minValue={-60}
-          maxValue={0}
+          minValue={-80}   // 调整最小值
+          maxValue={-20}   // 调整最大值
           backgroundColor="#1a1a1a"
+          smoothingFactor={0.1}
+          displayUnit="dB"
+          isEnergy={true}
         />
       </div>
     </div>
