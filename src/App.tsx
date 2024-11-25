@@ -28,7 +28,7 @@ function App() {
   useEffect(() => {
     const timer = setInterval(() => {
       setTimestamp(Date.now());
-    }, 1000 / 48); // 48fps
+    }, 1000 / 22); // 22fps
 
     return () => clearInterval(timer);
   }, []);
@@ -50,6 +50,7 @@ function App() {
             mfccData={mfccData || []}
             pitchData={pitchData}
             loudnessData={loudnessData}
+            vadStatus={vadStatus}
           />
         </div>
 

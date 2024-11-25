@@ -6,13 +6,15 @@ interface AudioFeaturesProps {
   mfccData: number[];
   pitchData: number;
   loudnessData: number;
+  vadStatus: boolean;
 }
 
 export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
   spectrumData,
   mfccData,
   pitchData,
-  loudnessData
+  loudnessData,
+  vadStatus
 }) => {
   // 在组件内部，将单个数值转换为数组进行显示
   const pitchArray = [pitchData];
@@ -96,18 +98,24 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
         />
       </div>
 
-      {/* Pitch */}
+      {/* Pitch 和 VAD 状态 */}
       <div className="grid grid-cols-2 gap-4 mt-4">
-        <div className="...">
-          <h3>Pitch</h3>
+        <div className="relative">
+          <h3 className="flex items-center gap-2">
+            Pitch
+            <span
+              className={`inline-block w-2 h-2 rounded-full ${vadStatus ? 'bg-green-500' : 'bg-red-500'
+                }`}
+            />
+          </h3>
           <div className="h-16">
             <ScrollingVisualizer
               data={pitchArray}
               height={64}
               renderType="line"
-              minValue={80}   // 人声最低频率约 80Hz
-              maxValue={400}  // 人声最高频率约 400Hz
-              color="#60A5FA"
+              minValue={80}
+              maxValue={400}
+              color={vadStatus ? "#60A5FA" : "#9CA3AF"}
               backgroundColor="#1a1a1a"
               smoothingFactor={0.15}
             />

@@ -179,11 +179,21 @@ export const useAudioCapture = () => {
 		if (audioContextRef.current) return;
 
 		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			const stream = await navigator.mediaDevices.getUserMedia({
+				audio: {
+					sampleRate: 16000,
+					channelCount: 1,
+					echoCancellation: true,
+					noiseSuppression: true,
+				},
+			});
 
-			audioContextRef.current = new AudioContext();
+			audioContextRef.current = new AudioContext({
+				sampleRate: 16000,
+				latencyHint: 'interactive',
+			});
+
 			analyserRef.current = audioContextRef.current.createAnalyser();
-
 			analyserRef.current.fftSize = 2048;
 			analyserRef.current.smoothingTimeConstant = 0.85;
 			analyserRef.current.minDecibels = -90;
@@ -195,7 +205,7 @@ export const useAudioCapture = () => {
 			meydaAnalyzerRef.current = window.Meyda.createMeydaAnalyzer({
 				audioContext: audioContextRef.current,
 				source: source,
-				bufferSize: 2048,
+				bufferSize: 1024,
 				numberOfMFCCCoefficients: 13,
 				featureExtractors: ['mfcc'],
 				callback: (features: MeydaFeatures) => {
