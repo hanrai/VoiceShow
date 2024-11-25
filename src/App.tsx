@@ -16,7 +16,8 @@ function App() {
     pitchData,
     loudnessData,
     startCapture,
-    isCapturing
+    isCapturing,
+    vadStatus
   } = useAudioCapture();
   const [timestamp, setTimestamp] = useState(Date.now());
 
@@ -53,12 +54,15 @@ function App() {
         </div>
 
         <NeuralNetworkViz isProcessing={isProcessing} />
-        <ClusteringViz
-          mfccData={mfccData || []}
-          pitchData={pitchData}
-          loudnessData={loudnessData}
-          timestamp={timestamp}
-        />
+        {vadStatus && (
+          <ClusteringViz
+            mfccData={mfccData || []}
+            pitchData={pitchData}
+            loudnessData={loudnessData}
+            timestamp={timestamp}
+            vadStatus={vadStatus}
+          />
+        )}
       </div>
     </div>
   );

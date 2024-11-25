@@ -10,6 +10,7 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
+		"@ricky0123/vad-web": "^0.0.19",
 		"d3": "^7.8.5",
 		"echarts": "^5.4.3",
 		"framer-motion": "^10.16.4",
@@ -19,6 +20,7 @@
 	},
 	"devDependencies": {
 		"@types/d3": "^7.4.3",
+		"@types/meyda": "^4.3.8",
 		"@types/react": "^18.2.37",
 		"@types/react-dom": "^18.2.15",
 		"@typescript-eslint/eslint-plugin": "^6.10.0",

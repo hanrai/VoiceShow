@@ -1,27 +1,38 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { KMeans } from '../utils/kmeans';
 
 interface ClusteringVizProps {
   mfccData: number[];
-  pitchData: number[];
-  loudnessData: number[];
+  pitchData: number;
+  loudnessData: number;
   timestamp: number;
+  vadStatus: boolean;
 }
 
 export const ClusteringViz: React.FC<ClusteringVizProps> = ({
   mfccData,
   pitchData,
   loudnessData,
-  timestamp
+  timestamp,
+  vadStatus
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const pointsRef = useRef<{ features: number[], timestamp: number }[]>([]);
   const kmeans = useRef(new KMeans(3, 10));
   const colors = ['#60A5FA', '#34D399', '#F87171'];
 
+  const featureVector = useMemo(() => {
+    return [
+      ...mfccData,
+      pitchData || 0,
+      loudnessData || 0,
+      vadStatus ? 1 : 0
+    ];
+  }, [mfccData, pitchData, loudnessData, vadStatus]);
+
   useEffect(() => {
-    if (!mfccData?.length || !pitchData?.length || !loudnessData?.length || !svgRef.current) return;
+    if (!mfccData?.length || !svgRef.current) return;
     if (mfccData.length < 4) return;
 
     const svg = d3.select(svgRef.current);
@@ -37,8 +48,8 @@ export const ClusteringViz: React.FC<ClusteringVizProps> = ({
         mfccData[1] / 80 || 0,
         mfccData[2] / 80 || 0,
         mfccData[3] / 80 || 0,
-        (pitchData[0] || 0) / 400,
-        ((loudnessData[0] || -60) + 60) / 60,
+        pitchData / 400,
+        (loudnessData + 60) / 60,
         Math.abs(mfccData[0] - (pointsRef.current[pointsRef.current.length - 1]?.features[0] || mfccData[0])) || 0,
         Math.abs(mfccData[1] - (pointsRef.current[pointsRef.current.length - 1]?.features[1] || mfccData[1])) || 0
       ];
@@ -136,7 +147,7 @@ export const ClusteringViz: React.FC<ClusteringVizProps> = ({
     } catch (error) {
       console.error('Error in ClusteringViz:', error);
     }
-  }, [mfccData, pitchData, loudnessData, timestamp]);
+  }, [mfccData, pitchData, loudnessData, timestamp, vadStatus]);
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">

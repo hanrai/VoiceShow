@@ -4,8 +4,8 @@ import { ScrollingVisualizer } from './ScrollingVisualizer';
 interface AudioFeaturesProps {
   spectrumData: number[];
   mfccData: number[];
-  pitchData: number[];
-  loudnessData: number[];
+  pitchData: number;
+  loudnessData: number;
 }
 
 export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
@@ -14,20 +14,24 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
   pitchData,
   loudnessData
 }) => {
+  // 在组件内部，将单个数值转换为数组进行显示
+  const pitchArray = [pitchData];
+  const loudnessArray = [loudnessData];
+
   // 修改频谱的总能量计算方法
   const calculateTotalEnergy = (spectrum: number[]): number => {
     if (!spectrum?.length) return 0;
-    
+
     // 直接使用dB值计算平均能量
-    const validValues = spectrum.filter(value => 
+    const validValues = spectrum.filter(value =>
       !isNaN(value) && isFinite(value) && value > -100  // 过滤掉无效值和极小值
     );
-    
+
     if (validValues.length === 0) return -100;  // 如果没有有效值，返回最小值
-    
+
     // 计算平均能量（dB域）
     const avgEnergy = validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
-    
+
     return avgEnergy;
   };
 
@@ -90,6 +94,42 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
           displayUnit="dB"
           isEnergy={true}
         />
+      </div>
+
+      {/* Pitch */}
+      <div className="grid grid-cols-2 gap-4 mt-4">
+        <div className="...">
+          <h3>Pitch</h3>
+          <div className="h-16">
+            <ScrollingVisualizer
+              data={pitchArray}
+              height={64}
+              renderType="line"
+              minValue={80}   // 人声最低频率约 80Hz
+              maxValue={400}  // 人声最高频率约 400Hz
+              color="#60A5FA"
+              backgroundColor="#1a1a1a"
+              smoothingFactor={0.15}
+            />
+          </div>
+        </div>
+        <div className="...">
+          <h3>Loudness</h3>
+          <div className="h-16">
+            <ScrollingVisualizer
+              data={loudnessArray}
+              height={64}
+              renderType="line"
+              minValue={-60}  // 最小分贝值
+              maxValue={0}    // 最大分贝值
+              color="#34D399"
+              backgroundColor="#1a1a1a"
+              smoothingFactor={0.1}
+              displayUnit="dB"
+              isEnergy={true}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

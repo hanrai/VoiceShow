@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Meyda from 'meyda';
+import * as VAD from '@ricky0123/vad-web';
 
 interface MeydaFeatures {
 	mfcc: number[];
@@ -107,13 +108,25 @@ const calculateLoudness = (buffer: Float32Array): number => {
 	return Math.max(-60, Math.min(0, db));
 };
 
+interface UseAudioCaptureReturn {
+	audioData: Float32Array | null;
+	spectrumData: Float32Array | null;
+	mfccData: number[] | null;
+	pitchData: number;
+	loudnessData: number;
+	vadStatus: boolean;
+	startCapture: () => Promise<void>;
+	isCapturing: boolean;
+}
+
 export const useAudioCapture = () => {
 	const [isCapturing, setIsCapturing] = useState(false);
 	const [audioData, setAudioData] = useState<Float32Array | null>(null);
 	const [spectrumData, setSpectrumData] = useState<Float32Array | null>(null);
 	const [mfccData, setMfccData] = useState<number[] | null>(null);
-	const [pitchData, setPitchData] = useState<number[]>([]);
-	const [loudnessData, setLoudnessData] = useState<number[]>([]); // 添加响度状态
+	const [pitchData, setPitchData] = useState<number>(0);
+	const [loudnessData, setLoudnessData] = useState<number>(0);
+	const [vadStatus, setVadStatus] = useState(false);
 
 	const audioContextRef = useRef<AudioContext | null>(null);
 	const analyserRef = useRef<AnalyserNode | null>(null);
@@ -142,13 +155,11 @@ export const useAudioCapture = () => {
 		);
 
 		if (isMountedRef.current && audioContextRef.current) {
-			// 计算音高
 			const pitch = detectPitch(newData, audioContextRef.current.sampleRate);
-			setPitchData([pitch]);
+			setPitchData(pitch);
 
-			// 计算响度
 			const loudness = calculateLoudness(newData);
-			setLoudnessData([loudness]);
+			setLoudnessData(loudness);
 
 			setAudioData(newData);
 			setSpectrumData(newSpectrumData);
@@ -210,6 +221,18 @@ export const useAudioCapture = () => {
 	useEffect(() => {
 		isMountedRef.current = true;
 
+		let vadModel: any;
+
+		const initVAD = async () => {
+			vadModel = await VAD.create({
+				onSpeechStart: () => setVadStatus(true),
+				onSpeechEnd: () => setVadStatus(false),
+			});
+			await vadModel.start();
+		};
+
+		initVAD();
+
 		return () => {
 			isMountedRef.current = false;
 			if (animationFrameRef.current) {
@@ -221,6 +244,9 @@ export const useAudioCapture = () => {
 			if (audioContextRef.current) {
 				audioContextRef.current.close();
 			}
+			if (vadModel) {
+				vadModel.destroy();
+			}
 		};
 	}, []);
 
@@ -229,7 +255,8 @@ export const useAudioCapture = () => {
 		spectrumData,
 		mfccData,
 		pitchData,
-		loudnessData, // 添加响度数据到返回值
+		loudnessData,
+		vadStatus,
 		startCapture,
 		isCapturing,
 	};
