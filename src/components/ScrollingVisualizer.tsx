@@ -11,6 +11,7 @@ interface ScrollingVisualizerProps {
   useColormap?: boolean;
   highlightPeak?: boolean;
   backgroundColor?: string;
+  smoothingFactor?: number;
 }
 
 // 线性频率转梅尔频率
@@ -99,6 +100,11 @@ const getViridisColor = (value: number): string => {
   return `rgb(${r},${g},${b})`;
 };
 
+// 添加指数移动平均计算函数
+const calculateEMA = (currentValue: number, previousEMA: number, smoothingFactor: number): number => {
+  return currentValue * smoothingFactor + previousEMA * (1 - smoothingFactor);
+};
+
 export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
   data,
   height,
@@ -109,20 +115,16 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
   maxFreq = 20000,
   useColormap = false,
   highlightPeak = false,
-  backgroundColor = '#ffffff'
+  backgroundColor = '#1a1a1a',
+  smoothingFactor = 0.15
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<number[][]>([]);
   const lastDrawTimeRef = useRef<number>(Date.now());
+  const emaRef = useRef<number>(0);
+  const rangeRef = useRef({ min: minValue, max: maxValue });
   const MAX_HISTORY = 10 * 48;
   const FRAME_INTERVAL = 1000 / 48;
-
-  // 动态范围追踪
-  const rangeRef = useRef({
-    min: minValue,
-    max: maxValue,
-    lastUpdate: Date.now()
-  });
 
   useEffect(() => {
     if (!data?.length) return;
@@ -133,7 +135,60 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
     }
     lastDrawTimeRef.current = currentTime;
 
-    historyRef.current.push([...data]);
+    // 如果是音高数据，计算EMA
+    if (renderType === 'line') {
+      // 找到频谱中能量最大的频率
+      let maxEnergy = -Infinity;
+      let maxFreqIndex = 0;
+      data.forEach((value, index) => {
+        if (value > maxEnergy) {
+          maxEnergy = value;
+          maxFreqIndex = index;
+        }
+      });
+
+      // 计算实际频率
+      const frequencyResolution = maxFreq / data.length;
+      const dominantFreq = maxFreqIndex * frequencyResolution;
+
+      // 更新EMA
+      emaRef.current = calculateEMA(dominantFreq, emaRef.current, smoothingFactor);
+      
+      // 更新显示范围
+      const RANGE_SMOOTHING = 0.05; // 范围调整的平滑因子
+      const PADDING_FACTOR = 0.2;   // 上下留白比例
+
+      // 获取最近的最大最小值
+      const recentValues = historyRef.current
+        .slice(-20)  // 只看最近20帧
+        .map(frame => frame[0])
+        .filter(v => v !== undefined);
+
+      if (recentValues.length > 0) {
+        const currentMin = Math.min(...recentValues);
+        const currentMax = Math.max(...recentValues);
+        const range = currentMax - currentMin;
+        const padding = range * PADDING_FACTOR;
+
+        // 平滑更新范围
+        rangeRef.current.min = calculateEMA(
+          currentMin - padding,
+          rangeRef.current.min,
+          RANGE_SMOOTHING
+        );
+        rangeRef.current.max = calculateEMA(
+          currentMax + padding,
+          rangeRef.current.max,
+          RANGE_SMOOTHING
+        );
+      }
+
+      // 将EMA值添加到历史记录
+      historyRef.current.push([emaRef.current]);
+    } else {
+      historyRef.current.push([...data]);
+    }
+
     if (historyRef.current.length > MAX_HISTORY) {
       historyRef.current.shift();
     }
@@ -148,49 +203,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (renderType === 'line') {
-      // 对于音高图，动态调整显示范围
-      if (historyRef.current.length > 0) {
-        const validValues = historyRef.current
-          .flatMap(frame => frame)
-          .filter(value => value > 0); // 只考虑有效的音高值
-
-        if (validValues.length > 0) {
-          const currentMin = Math.min(...validValues);
-          const currentMax = Math.max(...validValues);
-          const timeSinceLastUpdate = currentTime - rangeRef.current.lastUpdate;
-
-          // 平滑过渡到新的范围
-          const transitionSpeed = 0.1; // 调整过渡速度
-          rangeRef.current.min = Math.min(
-            rangeRef.current.min,
-            currentMin * 0.9
-          );
-          rangeRef.current.max = Math.max(
-            rangeRef.current.max,
-            currentMax * 1.1
-          );
-
-          // 如果一段时间没有新的极值，逐渐收缩范围
-          if (timeSinceLastUpdate > 1000) { // 1秒
-            const recentValues = historyRef.current
-              .slice(-10)
-              .flatMap(frame => frame)
-              .filter(value => value > 0);
-
-            if (recentValues.length > 0) {
-              const recentMin = Math.min(...recentValues);
-              const recentMax = Math.max(...recentValues);
-
-              rangeRef.current.min = rangeRef.current.min * (1 - transitionSpeed) +
-                recentMin * transitionSpeed;
-              rangeRef.current.max = rangeRef.current.max * (1 - transitionSpeed) +
-                recentMax * transitionSpeed;
-            }
-          }
-        }
-      }
-
-      // 绘制音高线
+      // 绘制EMA线
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -199,13 +212,11 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
         const x = (timeIndex * canvas.width) / MAX_HISTORY;
         const value = frameData[0];
 
-        if (value === 0) return;
-
         // 使用动态范围进行归一化
-        const normalizedValue = (value - rangeRef.current.min) /
+        const normalizedValue = (value - rangeRef.current.min) / 
           (rangeRef.current.max - rangeRef.current.min);
-
-        // 添加边距
+        
+        // 添加边距防止触顶触底
         const margin = height * 0.1;
         const y = Math.max(
           margin,
@@ -215,7 +226,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
           )
         );
 
-        if (timeIndex === 0 || historyRef.current[timeIndex - 1][0] === 0) {
+        if (timeIndex === 0) {
           ctx.moveTo(x, y);
         } else {
           ctx.lineTo(x, y);
@@ -223,6 +234,18 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
       });
 
       ctx.stroke();
+
+      // 可选：绘制当前值
+      const currentValue = historyRef.current[historyRef.current.length - 1]?.[0];
+      if (currentValue !== undefined) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px Arial';
+        ctx.fillText(
+          `${Math.round(currentValue)}Hz`, 
+          canvas.width - 50, 
+          20
+        );
+      }
     }
     else if (renderType === 'spectrum') {
       renderSpectrum(
@@ -254,7 +277,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
         });
       });
     }
-  }, [data, height, color, backgroundColor, minValue, maxValue, renderType, maxFreq, useColormap, highlightPeak]);
+  }, [data, height, color, backgroundColor, minValue, maxValue, renderType, maxFreq, useColormap, highlightPeak, smoothingFactor]);
 
   return (
     <canvas
@@ -262,6 +285,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
       width={800}
       height={height}
       className="w-full h-full"
+      style={{ backgroundColor }}
     />
   );
 }; 

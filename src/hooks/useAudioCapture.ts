@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type Meyda from 'meyda';
+import Meyda from 'meyda';
 
 interface MeydaFeatures {
 	mfcc: number[];

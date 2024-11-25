@@ -16,7 +16,7 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
 }) => {
   return (
     <div className="space-y-2 mt-6">
-      {/* 频谱图 - 使用彩色渲染 */}
+      {/* 频谱图 */}
       <div className="h-[48px]">
         <ScrollingVisualizer
           data={spectrumData}
@@ -27,6 +27,7 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
           maxFreq={8000}
           useColormap={true}
           highlightPeak={true}
+          backgroundColor="#1a1a1a"
         />
       </div>
 
@@ -39,18 +40,22 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
           renderType="heatmap"
           minValue={-80}
           maxValue={80}
+          backgroundColor="#1a1a1a"
         />
       </div>
 
-      {/* 音高图 - 调整频率范围 */}
+      {/* 音高图 - 现在显示主频率的EMA */}
       <div className="h-12">
         <ScrollingVisualizer
-          data={pitchData}
+          data={spectrumData}  // 使用频谱数据而不是音高数据
           height={48}
           color="#60A5FA"
           renderType="line"
-          minValue={80}   // 最低频率 80Hz
-          maxValue={400}  // 最高频率 400Hz
+          minValue={80}
+          maxValue={400}
+          maxFreq={8000}
+          backgroundColor="#1a1a1a"
+          smoothingFactor={0.15}  // 添加平滑因子
         />
       </div>
 
@@ -63,6 +68,7 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
           renderType="line"
           minValue={-60}
           maxValue={0}
+          backgroundColor="#1a1a1a"
         />
       </div>
     </div>
