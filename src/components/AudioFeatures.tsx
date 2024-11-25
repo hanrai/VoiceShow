@@ -16,16 +16,17 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
 }) => {
   return (
     <div className="space-y-2 mt-6">
-      {/* 频谱图 - 减小高度 */}
+      {/* 频谱图 - 使用彩色渲染 */}
       <div className="h-[48px]">
         <ScrollingVisualizer
           data={spectrumData}
           height={48}
-          color="200"
           renderType="spectrum"
           minValue={-100}
           maxValue={0}
           maxFreq={8000}
+          useColormap={true}
+          highlightPeak={true}
         />
       </div>
 

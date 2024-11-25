@@ -3,12 +3,14 @@ import React, { useRef, useEffect } from 'react';
 interface ScrollingVisualizerProps {
   data: number[];
   height: number;
-  color: string;
-  backgroundColor?: string;
-  minValue?: number;
-  maxValue?: number;
-  renderType: 'line' | 'spectrum' | 'heatmap';
+  color?: string;
+  renderType: 'spectrum' | 'line' | 'heatmap';
+  minValue: number;
+  maxValue: number;
   maxFreq?: number;
+  useColormap?: boolean;
+  highlightPeak?: boolean;
+  backgroundColor?: string;
 }
 
 // 线性频率转梅尔频率
@@ -33,43 +35,81 @@ const createMelScale = (minFreq: number, maxFreq: number, numBins: number): numb
   });
 };
 
-// 添加 viridis 类似的颜色映射函数
+// 添加颜色映射函数
+const getColor = (value: number, min: number, max: number): string => {
+  const normalized = (value - min) / (max - min);
+  // 使用viridis类似的配色方案
+  const r = Math.floor(255 * Math.min(Math.max(4 * normalized - 1.5, 0), 1));
+  const g = Math.floor(255 * Math.sin(Math.PI * normalized));
+  const b = Math.floor(255 * Math.min(Math.max(1.5 - 4 * normalized, 0), 1));
+  return `rgb(${r},${g},${b})`;
+};
+
+// 在渲染频谱的函数中
+const renderSpectrum = (
+  ctx: CanvasRenderingContext2D, 
+  data: number[], 
+  width: number, 
+  height: number,
+  minValue: number,
+  maxValue: number,
+  useColormap: boolean,
+  highlightPeak: boolean
+) => {
+  const barWidth = width / data.length;
+  
+  // 找到最大能量及其频率索引
+  let maxEnergy = -Infinity;
+  let maxEnergyIndex = 0;
+  
+  data.forEach((value, index) => {
+    if (value > maxEnergy) {
+      maxEnergy = value;
+      maxEnergyIndex = index;
+    }
+  });
+
+  data.forEach((value, index) => {
+    const x = index * barWidth;
+    const normalizedValue = (value - minValue) / (maxValue - minValue);
+    const barHeight = normalizedValue * height;
+
+    if (useColormap) {
+      ctx.fillStyle = getColor(value, minValue, maxValue);
+    }
+    
+    ctx.fillRect(x, height - barHeight, barWidth - 1, barHeight);
+
+    // 绘制峰值高亮
+    if (highlightPeak && index === maxEnergyIndex) {
+      ctx.fillStyle = '#ff0000';  // 红色高亮
+      ctx.fillRect(x - 1, 0, barWidth + 2, height);
+      ctx.fillStyle = '#ffffff';  // 白色中心线
+      ctx.fillRect(x, 0, barWidth, height);
+    }
+  });
+};
+
+// 添加 Viridis 颜色映射函数
 const getViridisColor = (value: number): string => {
-  // 将值映射到[0,1]区间
-  const t = Math.max(0, Math.min(1, value));
-
-  // viridis 颜色映射的简化版本
-  const c0 = [68, 1, 84];    // 深紫色
-  const c1 = [65, 182, 196]; // 青色
-  const c2 = [233, 229, 27]; // 黄色
-
-  let r, g, b;
-  if (t < 0.5) {
-    // 在深紫色和青色之间插值
-    const s = t * 2;
-    r = c0[0] + (c1[0] - c0[0]) * s;
-    g = c0[1] + (c1[1] - c0[1]) * s;
-    b = c0[2] + (c1[2] - c0[2]) * s;
-  } else {
-    // 在青色和黄色之间插值
-    const s = (t - 0.5) * 2;
-    r = c1[0] + (c2[0] - c1[0]) * s;
-    g = c1[1] + (c2[1] - c1[1]) * s;
-    b = c1[2] + (c2[2] - c1[2]) * s;
-  }
-
-  return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.9)`;
+  // 简化版的 Viridis 颜色映射
+  const r = Math.floor(255 * Math.min(Math.max(4 * value - 1.5, 0), 1));
+  const g = Math.floor(255 * Math.sin(Math.PI * value));
+  const b = Math.floor(255 * Math.min(Math.max(1.5 - 4 * value, 0), 1));
+  return `rgb(${r},${g},${b})`;
 };
 
 export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
   data,
   height,
-  color,
-  backgroundColor = '#1F2937',
-  minValue = 0,
-  maxValue = 1,
+  color = '#000000',
   renderType,
-  maxFreq = 20000
+  minValue,
+  maxValue,
+  maxFreq = 20000,
+  useColormap = false,
+  highlightPeak = false,
+  backgroundColor = '#ffffff'
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<number[][]>([]);
@@ -184,7 +224,19 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
 
       ctx.stroke();
     }
-    else if (renderType === 'spectrum' || renderType === 'heatmap') {
+    else if (renderType === 'spectrum') {
+      renderSpectrum(
+        ctx, 
+        data, 
+        canvas.width, 
+        height, 
+        minValue, 
+        maxValue, 
+        useColormap, 
+        highlightPeak
+      );
+    }
+    else if (renderType === 'heatmap') {
       // 绘制所有历史数据
       historyRef.current.forEach((frameData, timeIndex) => {
         const x = (timeIndex * canvas.width) / MAX_HISTORY;
@@ -194,22 +246,15 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
           const normalizedValue = (value - minValue) / (maxValue - minValue);
           const binHeight = height / frameData.length;
 
-          if (renderType === 'spectrum') {
-            // 频谱图从下到上绘制
-            const y = height - ((freqIndex + 1) * binHeight);
-            ctx.fillStyle = getViridisColor(normalizedValue);
-            ctx.fillRect(x, y, sliceWidth - 0.5, binHeight - 0.5);
-          } else {
-            // MFCC热力图从上到下绘制
-            const y = freqIndex * binHeight;
-            const hue = Math.max(0, Math.min(240, (1 - normalizedValue) * 240));
-            ctx.fillStyle = `hsla(${hue}, 100%, 50%, 0.8)`;
-            ctx.fillRect(x, y, sliceWidth - 0.5, binHeight - 0.5);
-          }
+          // MFCC热力图从上到下绘制
+          const y = freqIndex * binHeight;
+          const hue = Math.max(0, Math.min(240, (1 - normalizedValue) * 240));
+          ctx.fillStyle = `hsla(${hue}, 100%, 50%, 0.8)`;
+          ctx.fillRect(x, y, sliceWidth - 0.5, binHeight - 0.5);
         });
       });
     }
-  }, [data, height, color, backgroundColor, minValue, maxValue, renderType, maxFreq]);
+  }, [data, height, color, backgroundColor, minValue, maxValue, renderType, maxFreq, useColormap, highlightPeak]);
 
   return (
     <canvas
