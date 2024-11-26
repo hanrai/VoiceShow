@@ -67,7 +67,7 @@ function App() {
           </div>
           <AudioFeatures
             waveformData={audioData ? Array.from(audioData) : []}
-            spectrumData={[]}
+            spectrumData={spectrumData}
             mfccData={mfccData || []}
             pitchData={pitchData}
             loudnessData={loudnessData}

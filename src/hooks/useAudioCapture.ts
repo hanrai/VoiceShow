@@ -142,8 +142,10 @@ export const useAudioCapture = () => {
 			!dataArrayRef.current ||
 			!frequencyArrayRef.current ||
 			!isMountedRef.current
-		)
+		) {
+			console.log('Missing required references in updateData');
 			return;
+		}
 
 		analyserRef.current.getFloatTimeDomainData(dataArrayRef.current);
 		const newData = new Float32Array(dataArrayRef.current);
@@ -155,14 +157,26 @@ export const useAudioCapture = () => {
 		);
 
 		if (isMountedRef.current && audioContextRef.current) {
+			// 修改数据验证逻辑
+			const hasValidData =
+				newSpectrumData.length > 0 &&
+				newSpectrumData.some(value => value > -100); // 检查是否有有效的频谱数据
+
+			if (!hasValidData) {
+				console.log('Waiting for valid audio data...');
+				animationFrameRef.current = requestAnimationFrame(updateData);
+				return;
+			}
+
+			// 计算音高和响度
 			const pitch = detectPitch(newData, audioContextRef.current.sampleRate);
-			setPitchData(pitch);
-
 			const loudness = calculateLoudness(newData);
-			setLoudnessData(loudness);
 
+			// 更新所有状态
 			setAudioData(newData);
 			setSpectrumData(newSpectrumData);
+			setPitchData(pitch);
+			setLoudnessData(loudness);
 
 			if (meydaAnalyzerRef.current) {
 				const features = meydaAnalyzerRef.current.get(['mfcc']);
@@ -171,17 +185,30 @@ export const useAudioCapture = () => {
 				}
 			}
 
+			// 添加调试日志
+			console.log('Audio processing:', {
+				dataLength: newData.length,
+				spectrumLength: newSpectrumData.length,
+				pitch,
+				loudness,
+				spectrumSample: Array.from(newSpectrumData.slice(0, 5)),
+				timeDataSample: Array.from(newData.slice(0, 5)),
+			});
+
 			animationFrameRef.current = requestAnimationFrame(updateData);
 		}
 	}, []);
 
 	const startCapture = useCallback(async () => {
-		if (audioContextRef.current) return;
+		if (audioContextRef.current) {
+			console.log('Audio capture already started');
+			return;
+		}
 
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({
 				audio: {
-					sampleRate: 16000,
+					sampleRate: 48000,
 					channelCount: 1,
 					echoCancellation: true,
 					noiseSuppression: true,
@@ -189,7 +216,7 @@ export const useAudioCapture = () => {
 			});
 
 			audioContextRef.current = new AudioContext({
-				sampleRate: 16000,
+				sampleRate: 48000,
 				latencyHint: 'interactive',
 			});
 
@@ -220,6 +247,17 @@ export const useAudioCapture = () => {
 			const bufferLength = analyserRef.current.frequencyBinCount;
 			dataArrayRef.current = new Float32Array(bufferLength);
 			frequencyArrayRef.current = new Float32Array(bufferLength);
+
+			console.log('Audio capture started:', {
+				fftSize: analyserRef.current.fftSize,
+				bufferLength,
+				sampleRate: audioContextRef.current.sampleRate,
+				analyserConfig: {
+					smoothingTimeConstant: analyserRef.current.smoothingTimeConstant,
+					minDecibels: analyserRef.current.minDecibels,
+					maxDecibels: analyserRef.current.maxDecibels,
+				},
+			});
 
 			setIsCapturing(true);
 			updateData();

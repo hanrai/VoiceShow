@@ -1,10 +1,10 @@
 import React, { useRef, useEffect } from 'react';
 
 interface ScrollingVisualizerProps {
-  data: number[];
+  data: number[] | Float32Array;
   height: number;
   color?: string;
-  renderType: 'spectrum' | 'line' | 'heatmap';
+  renderType: 'spectrum' | 'line' | 'heatmap' | 'spectrumWithPitch';
   minValue: number;
   maxValue: number;
   maxFreq?: number;
@@ -15,6 +15,8 @@ interface ScrollingVisualizerProps {
   displayUnit?: string;
   isEnergy?: boolean;
   clearBeforeDraw?: boolean;
+  dominantFreq?: number | null;
+  threshold?: number;
 }
 
 // 线性频率转梅尔频率
@@ -52,7 +54,7 @@ const getColor = (value: number, min: number, max: number): string => {
 // 在渲染频谱的函数中
 const renderSpectrum = (
   ctx: CanvasRenderingContext2D,
-  data: number[],
+  data: number[] | Float32Array,
   width: number,
   height: number,
   minValue: number,
@@ -84,7 +86,7 @@ const renderSpectrum = (
 
     ctx.fillRect(x, height - barHeight, barWidth - 1, barHeight);
 
-    // 绘制峰值高亮
+    // 绘制峰值亮
     if (highlightPeak && index === maxEnergyIndex) {
       ctx.fillStyle = '#ff0000';  // 红色高亮
       ctx.fillRect(x - 1, 0, barWidth + 2, height);
@@ -122,7 +124,9 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
   smoothingFactor = 0.15,
   displayUnit = 'Hz',
   isEnergy = false,
-  clearBeforeDraw = false
+  clearBeforeDraw = false,
+  dominantFreq,
+  threshold = -60
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<number[][]>([]);
@@ -131,15 +135,201 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
   const displayRangeRef = useRef<{ min: number; max: number }>({ min: minValue, max: maxValue });
   const MAX_HISTORY = 10 * 48;
   const FRAME_INTERVAL = 1000 / 48;
+  const imageDataRef = useRef<ImageData | null>(null);
+
+  const renderSpectrumWithPitch = (
+    ctx: CanvasRenderingContext2D,
+    currentData: number[] | Float32Array,
+    width: number,
+    height: number,
+    min: number,
+    max: number,
+    freq: number | null | undefined,
+    freqMax: number,
+    thresh: number
+  ) => {
+    if (!currentData?.length) return;
+
+    // 1. 初始化或获取 ImageData
+    if (!imageDataRef.current) {
+      imageDataRef.current = ctx.createImageData(width, height);
+    }
+    const imageData = imageDataRef.current;
+    const data = imageData.data;
+
+    // 2. 左移一列像素
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width - 1; x++) {
+        const srcIndex = (y * width + x + 1) * 4;
+        const destIndex = (y * width + x) * 4;
+        data[destIndex] = data[srcIndex];
+        data[destIndex + 1] = data[srcIndex + 1];
+        data[destIndex + 2] = data[srcIndex + 2];
+        data[destIndex + 3] = data[srcIndex + 3];
+      }
+    }
+
+    // 3. 绘制新的一列数据
+    const x = width - 1;
+    const binReduction = 2;
+    const reducedData: number[] = [];
+    for (let i = 0; i < currentData.length; i += binReduction) {
+      const binData = Array.from(currentData.slice(i, i + binReduction));
+      const sum = binData.reduce((acc: number, curr: number) => acc + curr, 0);
+      reducedData.push(sum / binReduction);
+    }
+
+    // 4. 更新最右侧列的像素（反转Y轴）
+    reducedData.forEach((value, freqIndex) => {
+      const normalizedValue = (value - min) / (max - min);
+      const binHeight = height / reducedData.length;
+      // 反转Y轴坐标
+      const startY = height - Math.floor((freqIndex + 1) * binHeight);
+      const endY = height - Math.floor(freqIndex * binHeight);
+
+      // 计算颜色，降低不透明度
+      const hue = Math.max(0, Math.min(240, (1 - normalizedValue) * 240));
+      const [r, g, b] = hslToRgb(hue / 360, 1, 0.5);
+
+      // 填充该频率bin对应的像素，降低透明度
+      for (let y = startY; y < endY; y++) {
+        const index = (y * width + x) * 4;
+        data[index] = r;
+        data[index + 1] = g;
+        data[index + 2] = b;
+        data[index + 3] = 128; // 降低透明度到 0.5
+      }
+    });
+
+    // 5. 如果有主频率，在最右侧绘制标记
+    if (freq !== undefined && freq !== null) {
+      // 反转Y轴坐标
+      const freqY = height - Math.floor((freq / freqMax) * height);
+
+      // 绘制发光效果
+      const glowRadius = 3;
+      for (let dy = -glowRadius; dy <= glowRadius; dy++) {
+        for (let dx = -glowRadius; dx <= glowRadius; dx++) {
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance <= glowRadius) {
+            const py = freqY + dy;
+            const px = x + dx;
+            if (py >= 0 && py < height && px >= 0 && px < width) {
+              const index = (py * width + px) * 4;
+              const alpha = Math.floor(255 * (1 - distance / glowRadius) * 0.8);
+              data[index] = 255;
+              data[index + 1] = 255;
+              data[index + 2] = 255;
+              data[index + 3] = alpha;
+            }
+          }
+        }
+      }
+
+      // 绘制中心线
+      for (let dy = -1; dy <= 1; dy++) {
+        const py = freqY + dy;
+        if (py >= 0 && py < height) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const px = x + dx;
+            if (px >= 0 && px < width) {
+              const index = (py * width + px) * 4;
+              data[index] = 255;
+              data[index + 1] = 255;
+              data[index + 2] = 255;
+              data[index + 3] = 255; // 完全不透明的中心线
+            }
+          }
+        }
+      }
+    }
+
+    // 6. 将 ImageData 绘制到画布上
+    ctx.putImageData(imageData, 0, 0);
+
+    // 7. 绘制频率刻度（反转Y轴）
+    if (!ctx.canvas.getAttribute('scales-drawn')) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '10px Arial';
+      ctx.textAlign = 'right';
+      const freqSteps = [0, 500, 1000, 1500, 2000];
+      freqSteps.forEach(f => {
+        // 反转Y轴坐标
+        const y = height - (f / freqMax) * height;
+        ctx.fillText(`${f}Hz`, width - 5, y + 4);
+      });
+      ctx.canvas.setAttribute('scales-drawn', 'true');
+    }
+  };
+
+  // HSL 转 RGB 的辅助函数
+  const hslToRgb = (h: number, s: number, l: number): [number, number, number] => {
+    let r, g, b;
+
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const hue2rgb = (p: number, q: number, t: number) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      };
+
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1 / 3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1 / 3);
+    }
+
+    return [
+      Math.round(r * 255),
+      Math.round(g * 255),
+      Math.round(b * 255)
+    ];
+  };
 
   useEffect(() => {
-    if (!data?.length) return;
+    if (!data?.length) {
+      console.log('No data in ScrollingVisualizer');
+      return;
+    }
+
+    console.log('ScrollingVisualizer data:', {
+      renderType,
+      dataLength: data.length,
+      dominantFreq,
+      maxFreq,
+      threshold,
+      data: data.slice(0, 5) // 只打印前5个数据点用于调试
+    });
 
     const currentTime = Date.now();
     if (currentTime - lastDrawTimeRef.current < FRAME_INTERVAL) {
       return;
     }
     lastDrawTimeRef.current = currentTime;
+
+    // 更新历史数据
+    if (renderType === 'spectrumWithPitch' || renderType === 'heatmap') {
+      historyRef.current.push(Array.from(data));
+      if (historyRef.current.length > MAX_HISTORY) {
+        historyRef.current.shift();
+      }
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (renderType === 'line') {
       // 计算当前值
@@ -193,25 +383,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
           (Math.min(recentMax + recentPadding, maxValue) - displayRangeRef.current.max) *
           RANGE_SHRINK_FACTOR
       };
-    } else {
-      historyRef.current.push([...data]);
-      if (historyRef.current.length > MAX_HISTORY) {
-        historyRef.current.shift();
-      }
     }
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    if (clearBeforeDraw) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (renderType === 'line') {
       ctx.strokeStyle = color;
@@ -283,7 +455,20 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
         });
       });
     }
-  }, [data, height, color, backgroundColor, minValue, maxValue, renderType, maxFreq, useColormap, highlightPeak, smoothingFactor, displayUnit, isEnergy, clearBeforeDraw]);
+    else if (renderType === 'spectrumWithPitch') {
+      renderSpectrumWithPitch(
+        ctx,
+        data,
+        canvas.width,
+        height,
+        minValue,
+        maxValue,
+        dominantFreq,
+        maxFreq || 2000,
+        threshold
+      );
+    }
+  }, [data, height, color, backgroundColor, minValue, maxValue, renderType, maxFreq, useColormap, highlightPeak, smoothingFactor, displayUnit, isEnergy, clearBeforeDraw, dominantFreq, threshold]);
 
   return (
     <canvas

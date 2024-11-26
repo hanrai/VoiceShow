@@ -1,16 +1,52 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ScrollingVisualizer } from './ScrollingVisualizer';
 import { AudioVisualizer } from './AudioVisualizer';
 import { Activity } from 'lucide-react';
 
 interface AudioFeaturesProps {
   waveformData?: number[];
-  spectrumData: number[];
+  spectrumData: Float32Array | null;
   mfccData: number[];
   pitchData: number;
   loudnessData: number;
   vadStatus: boolean;
 }
+
+// 添加主频率追踪函数
+const trackDominantFrequency = (spectrum: Float32Array | null): number | null => {
+  if (!spectrum?.length) {
+    console.log('No spectrum data for pitch tracking');
+    return null;
+  }
+
+  const sampleRate = 48000;
+  const binSize = sampleRate / (2 * spectrum.length);
+  const minFreqBin = Math.floor(80 / binSize);
+  const maxFreqBin = Math.floor(1000 / binSize);
+
+  // 添加能量阈值
+  const energyThreshold = -60; // dB
+
+  let maxEnergy = -Infinity;
+  let dominantBin = -1;
+
+  // 在目标频率范围内寻找能量最高点
+  for (let i = minFreqBin; i < maxFreqBin; i++) {
+    if (spectrum[i] > energyThreshold && spectrum[i] > maxEnergy) {
+      maxEnergy = spectrum[i];
+      dominantBin = i;
+    }
+  }
+
+  if (dominantBin === -1) {
+    console.log('No dominant frequency found above threshold');
+    return null;
+  }
+
+  const dominantFreq = dominantBin * binSize;
+  console.log('Found dominant frequency:', dominantFreq, 'Hz');
+  return dominantFreq;
+};
 
 export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
   waveformData = [],
@@ -20,26 +56,36 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
   loudnessData,
   vadStatus
 }) => {
+  useEffect(() => {
+    console.log('AudioFeatures received:', {
+      spectrumDataLength: spectrumData?.length,
+      spectrumDataType: spectrumData ? typeof spectrumData : 'undefined',
+      spectrumDataSample: spectrumData?.slice(0, 5)
+    });
+  }, [spectrumData]);
+
   // 在组件内部，将单个数值转换为数组进行显示
   const pitchArray = [pitchData];
   const loudnessArray = [loudnessData];
 
-  // 修改频谱的总能量计算方法
-  const calculateTotalEnergy = (spectrum: number[]): number => {
-    if (!spectrum?.length) return 0;
+  // 修改总能量计算函数以支持两种类型
+  const calculateTotalEnergy = (spectrum: Float32Array | null): number => {
+    if (!spectrum?.length) return -100;
 
-    // 直接使用dB值计算平均能量
-    const validValues = spectrum.filter(value =>
-      !isNaN(value) && isFinite(value) && value > -100  // 过滤掉无效值和极小值
+    const values = Array.from(spectrum);
+    const validValues = values.filter(value =>
+      !isNaN(value) && isFinite(value) && value > -100
     );
 
-    if (validValues.length === 0) return -100;  // 如果没有有效值，返回最小值
+    if (validValues.length === 0) return -100;
 
-    // 计算平均能量（dB域）
-    const avgEnergy = validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
-
-    return avgEnergy;
+    return validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
   };
+
+  // 添加 useEffect 来处理日志
+  useEffect(() => {
+    console.log('Spectrum data:', spectrumData);
+  }, [spectrumData]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
@@ -76,15 +122,18 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
           <span>音高</span>
         </div>
         <ScrollingVisualizer
-          data={spectrumData}
+          data={Array.from(spectrumData || new Float32Array())}
           height={120}
-          color="#60A5FA"
-          renderType="line"
-          minValue={80}
-          maxValue={400}
-          maxFreq={8000}
+          renderType="spectrumWithPitch"
+          minValue={-100}
+          maxValue={0}
+          maxFreq={2000}
           backgroundColor="#1a1a1a"
+          color="#60A5FA"
+          dominantFreq={trackDominantFrequency(spectrumData)}
           smoothingFactor={0.15}
+          threshold={-60}
+          clearBeforeDraw={true}
         />
       </div>
 
