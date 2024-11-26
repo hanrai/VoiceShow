@@ -14,6 +14,7 @@ interface ScrollingVisualizerProps {
   smoothingFactor?: number;
   displayUnit?: string;
   isEnergy?: boolean;
+  clearBeforeDraw?: boolean;
 }
 
 // 线性频率转梅尔频率
@@ -50,9 +51,9 @@ const getColor = (value: number, min: number, max: number): string => {
 
 // 在渲染频谱的函数中
 const renderSpectrum = (
-  ctx: CanvasRenderingContext2D, 
-  data: number[], 
-  width: number, 
+  ctx: CanvasRenderingContext2D,
+  data: number[],
+  width: number,
   height: number,
   minValue: number,
   maxValue: number,
@@ -60,11 +61,11 @@ const renderSpectrum = (
   highlightPeak: boolean
 ) => {
   const barWidth = width / data.length;
-  
+
   // 找到最大能量及其频率索引
   let maxEnergy = -Infinity;
   let maxEnergyIndex = 0;
-  
+
   data.forEach((value, index) => {
     if (value > maxEnergy) {
       maxEnergy = value;
@@ -80,7 +81,7 @@ const renderSpectrum = (
     if (useColormap) {
       ctx.fillStyle = getColor(value, minValue, maxValue);
     }
-    
+
     ctx.fillRect(x, height - barHeight, barWidth - 1, barHeight);
 
     // 绘制峰值高亮
@@ -120,7 +121,8 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
   backgroundColor = '#1a1a1a',
   smoothingFactor = 0.15,
   displayUnit = 'Hz',
-  isEnergy = false
+  isEnergy = false,
+  clearBeforeDraw = false
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const historyRef = useRef<number[][]>([]);
@@ -184,11 +186,11 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
       const recentPadding = (recentMax - recentMin) * 0.2;
 
       displayRangeRef.current = {
-        min: displayRangeRef.current.min + 
-          (Math.max(recentMin - recentPadding, minValue) - displayRangeRef.current.min) * 
+        min: displayRangeRef.current.min +
+          (Math.max(recentMin - recentPadding, minValue) - displayRangeRef.current.min) *
           RANGE_SHRINK_FACTOR,
-        max: displayRangeRef.current.max + 
-          (Math.min(recentMax + recentPadding, maxValue) - displayRangeRef.current.max) * 
+        max: displayRangeRef.current.max +
+          (Math.min(recentMax + recentPadding, maxValue) - displayRangeRef.current.max) *
           RANGE_SHRINK_FACTOR
       };
     } else {
@@ -204,6 +206,10 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    if (clearBeforeDraw) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -216,9 +222,9 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
         const x = (timeIndex * canvas.width) / MAX_HISTORY;
         const value = frameData[0];
 
-        const normalizedValue = (value - displayRangeRef.current.min) / 
+        const normalizedValue = (value - displayRangeRef.current.min) /
           (displayRangeRef.current.max - displayRangeRef.current.min);
-        
+
         const margin = height * 0.1;
         const y = Math.max(
           margin,
@@ -243,21 +249,21 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
         ctx.fillStyle = '#ffffff';
         ctx.font = '12px Arial';
         ctx.fillText(
-          `${isEnergy ? currentValue.toFixed(1) : Math.round(currentValue)}${displayUnit}`, 
-          canvas.width - 50, 
+          `${isEnergy ? currentValue.toFixed(1) : Math.round(currentValue)}${displayUnit}`,
+          canvas.width - 50,
           20
         );
       }
     }
     else if (renderType === 'spectrum') {
       renderSpectrum(
-        ctx, 
-        data, 
-        canvas.width, 
-        height, 
-        minValue, 
-        maxValue, 
-        useColormap, 
+        ctx,
+        data,
+        canvas.width,
+        height,
+        minValue,
+        maxValue,
+        useColormap,
         highlightPeak
       );
     }
@@ -277,7 +283,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
         });
       });
     }
-  }, [data, height, color, backgroundColor, minValue, maxValue, renderType, maxFreq, useColormap, highlightPeak, smoothingFactor, displayUnit, isEnergy]);
+  }, [data, height, color, backgroundColor, minValue, maxValue, renderType, maxFreq, useColormap, highlightPeak, smoothingFactor, displayUnit, isEnergy, clearBeforeDraw]);
 
   return (
     <canvas

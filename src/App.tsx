@@ -47,11 +47,11 @@ function App() {
             <div className="flex-shrink-0">
               <AnimatedMicrophone />
             </div>
-            <div className="h-24 flex-1 overflow-hidden">
+            <div className="h-16 flex-1 overflow-hidden">
               {spectrumData && (
                 <ScrollingVisualizer
                   data={Array.from(spectrumData)}
-                  height={96}
+                  height={64}
                   renderType="spectrum"
                   minValue={-100}
                   maxValue={0}
@@ -60,6 +60,7 @@ function App() {
                   highlightPeak={true}
                   backgroundColor="transparent"
                   color="#60A5FA"
+                  clearBeforeDraw={true}
                 />
               )}
             </div>
