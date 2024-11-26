@@ -110,6 +110,73 @@ const calculateEMA = (currentValue: number, previousEMA: number, smoothingFactor
   return currentValue * smoothingFactor + previousEMA * (1 - smoothingFactor);
 };
 
+// 添加高斯模糊辅助函数
+const applyGaussianBlur = (data: Uint8ClampedArray, width: number, height: number, radius: number) => {
+  const kernel = createGaussianKernel(radius);
+  const tempData = new Uint8ClampedArray(data.length);
+
+  // 水平方向模糊
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let r = 0, g = 0, b = 0, a = 0;
+      let weightSum = 0;
+
+      for (let i = -radius; i <= radius; i++) {
+        const px = Math.min(Math.max(x + i, 0), width - 1);
+        const weight = kernel[i + radius];
+        const idx = (y * width + px) * 4;
+
+        r += data[idx] * weight;
+        g += data[idx + 1] * weight;
+        b += data[idx + 2] * weight;
+        a += data[idx + 3] * weight;
+        weightSum += weight;
+      }
+
+      const destIdx = (y * width + x) * 4;
+      tempData[destIdx] = r / weightSum;
+      tempData[destIdx + 1] = g / weightSum;
+      tempData[destIdx + 2] = b / weightSum;
+      tempData[destIdx + 3] = a / weightSum;
+    }
+  }
+
+  // 垂直方向模糊
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let r = 0, g = 0, b = 0, a = 0;
+      let weightSum = 0;
+
+      for (let i = -radius; i <= radius; i++) {
+        const py = Math.min(Math.max(y + i, 0), height - 1);
+        const weight = kernel[i + radius];
+        const idx = (py * width + x) * 4;
+
+        r += tempData[idx] * weight;
+        g += tempData[idx + 1] * weight;
+        b += tempData[idx + 2] * weight;
+        a += tempData[idx + 3] * weight;
+        weightSum += weight;
+      }
+
+      const destIdx = (y * width + x) * 4;
+      data[destIdx] = r / weightSum;
+      data[destIdx + 1] = g / weightSum;
+      data[destIdx + 2] = b / weightSum;
+      data[destIdx + 3] = a / weightSum;
+    }
+  }
+};
+
+const createGaussianKernel = (radius: number): number[] => {
+  const kernel = [];
+  const sigma = radius / 3;
+  for (let i = -radius; i <= radius; i++) {
+    kernel.push(Math.exp(-(i * i) / (2 * sigma * sigma)));
+  }
+  return kernel;
+};
+
 export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
   data,
   height,
@@ -179,7 +246,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
       reducedData.push(sum / binReduction);
     }
 
-    // 4. 更新最右侧列的像素（反转Y轴）
+    // 4. 更新最右侧列的像素
     reducedData.forEach((value, freqIndex) => {
       const normalizedValue = (value - min) / (max - min);
       const binHeight = height / reducedData.length;
@@ -247,7 +314,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
     // 6. 将 ImageData 绘制到画布上
     ctx.putImageData(imageData, 0, 0);
 
-    // 7. 绘制频率刻度（反转Y轴）
+    // 7. 绘制频率刻度
     if (!ctx.canvas.getAttribute('scales-drawn')) {
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '10px Arial';
@@ -293,19 +360,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
   };
 
   useEffect(() => {
-    if (!data?.length) {
-      console.log('No data in ScrollingVisualizer');
-      return;
-    }
-
-    console.log('ScrollingVisualizer data:', {
-      renderType,
-      dataLength: data.length,
-      dominantFreq,
-      maxFreq,
-      threshold,
-      data: data.slice(0, 5) // 只打印前5个数据点用于调试
-    });
+    if (!data?.length) return;
 
     const currentTime = Date.now();
     if (currentTime - lastDrawTimeRef.current < FRAME_INTERVAL) {
@@ -440,20 +495,58 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
       );
     }
     else if (renderType === 'heatmap') {
-      historyRef.current.forEach((frameData, timeIndex) => {
-        const x = (timeIndex * canvas.width) / MAX_HISTORY;
-        const sliceWidth = canvas.width / MAX_HISTORY;
+      // 1. 初始化或获取 ImageData
+      if (!imageDataRef.current) {
+        imageDataRef.current = ctx.createImageData(canvas.width, height);
+      }
+      const imageData = imageDataRef.current;
+      const imageData8 = imageData.data;
 
-        frameData.forEach((value, freqIndex) => {
-          const normalizedValue = (value - minValue) / (maxValue - minValue);
-          const binHeight = height / frameData.length;
+      // 2. 左移一列像素
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < canvas.width - 1; x++) {
+          const srcIndex = (y * canvas.width + x + 1) * 4;
+          const destIndex = (y * canvas.width + x) * 4;
+          imageData8[destIndex] = imageData8[srcIndex];
+          imageData8[destIndex + 1] = imageData8[srcIndex + 1];
+          imageData8[destIndex + 2] = imageData8[srcIndex + 2];
+          imageData8[destIndex + 3] = imageData8[srcIndex + 3];
+        }
+      }
 
-          const y = freqIndex * binHeight;
-          const hue = Math.max(0, Math.min(240, (1 - normalizedValue) * 240));
-          ctx.fillStyle = `hsla(${hue}, 100%, 50%, 0.8)`;
-          ctx.fillRect(x, y, sliceWidth - 0.5, binHeight - 0.5);
-        });
-      });
+      // 3. 绘制新的一列数据
+      const x = canvas.width - 1;
+      const numCoefficients = Array.isArray(data) ? data.length : data.length;
+      const binHeight = height / numCoefficients;
+
+      // 4. 更新最右侧列的像素
+      for (let i = 0; i < numCoefficients; i++) {
+        const value = Array.isArray(data) ? data[i] : data[i];
+        const normalizedValue = (value - minValue) / (maxValue - minValue);
+
+        // 反转Y轴坐标
+        const startY = height - Math.floor((i + 1) * binHeight);
+        const endY = height - Math.floor(i * binHeight);
+
+        // 使用viridis颜色映射
+        const color = getViridisColor(normalizedValue);
+        const [r, g, b] = color.match(/\d+/g)!.map(Number);
+
+        // 填充该系数对应的像素
+        for (let y = startY; y < endY; y++) {
+          const index = (y * canvas.width + x) * 4;
+          imageData8[index] = r;
+          imageData8[index + 1] = g;
+          imageData8[index + 2] = b;
+          imageData8[index + 3] = 255;
+        }
+      }
+
+      // 5. 应用高斯模糊效果
+      applyGaussianBlur(imageData8, canvas.width, height, 1);
+
+      // 6. 将 ImageData 绘制到画布上
+      ctx.putImageData(imageData, 0, 0);
     }
     else if (renderType === 'spectrumWithPitch') {
       renderSpectrumWithPitch(

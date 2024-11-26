@@ -185,16 +185,6 @@ export const useAudioCapture = () => {
 				}
 			}
 
-			// 添加调试日志
-			console.log('Audio processing:', {
-				dataLength: newData.length,
-				spectrumLength: newSpectrumData.length,
-				pitch,
-				loudness,
-				spectrumSample: Array.from(newSpectrumData.slice(0, 5)),
-				timeDataSample: Array.from(newData.slice(0, 5)),
-			});
-
 			animationFrameRef.current = requestAnimationFrame(updateData);
 		}
 	}, []);
