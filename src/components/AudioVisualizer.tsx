@@ -1,12 +1,16 @@
 import React, { useEffect, useRef } from 'react';
 
 interface AudioVisualizerProps {
-  data: Float32Array;
+  data: number[] | Float32Array;
+  type?: 'waveform' | 'spectrum';
 }
 
 declare const echarts: any;
 
-export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ data }) => {
+export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
+  data,
+  type = 'waveform'
+}) => {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<any>();
   const historyRef = useRef<number[][]>([]);

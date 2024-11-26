@@ -1,7 +1,10 @@
 import React from 'react';
 import { ScrollingVisualizer } from './ScrollingVisualizer';
+import { AudioVisualizer } from './AudioVisualizer';
+import { Activity } from 'lucide-react';
 
 interface AudioFeaturesProps {
+  waveformData?: number[];
   spectrumData: number[];
   mfccData: number[];
   pitchData: number;
@@ -10,6 +13,7 @@ interface AudioFeaturesProps {
 }
 
 export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
+  waveformData = [],
   spectrumData,
   mfccData,
   pitchData,
@@ -38,105 +42,119 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
   };
 
   return (
-    <div className="space-y-2 mt-6">
-      {/* 频谱图 */}
-      <div className="h-[48px]">
-        <ScrollingVisualizer
-          data={spectrumData}
-          height={48}
-          renderType="spectrum"
-          minValue={-100}
-          maxValue={0}
-          maxFreq={8000}
-          useColormap={true}
-          highlightPeak={true}
-          backgroundColor="#1a1a1a"
-        />
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+      {/* 波形图 */}
+      <div className="feature-card">
+        <div className="feature-header">
+          <Activity className="w-4 h-4" />
+          <span>波形</span>
+        </div>
+        <div className="feature-content">
+          <AudioVisualizer data={waveformData} type="waveform" />
+        </div>
       </div>
 
       {/* MFCC图 */}
-      <div className="h-[48px]">
-        <ScrollingVisualizer
-          data={mfccData}
-          height={48}
-          color="0"
-          renderType="heatmap"
-          minValue={-80}
-          maxValue={80}
-          backgroundColor="#1a1a1a"
-        />
+      <div className="feature-card">
+        <div className="feature-header">
+          <Activity className="w-4 h-4" />
+          <span>MFCC</span>
+        </div>
+        <div className="feature-content">
+          <ScrollingVisualizer
+            data={mfccData}
+            height={48}
+            color="0"
+            renderType="heatmap"
+            minValue={-80}
+            maxValue={80}
+            backgroundColor="#1a1a1a"
+          />
+        </div>
       </div>
 
       {/* 音高图 - 主频率的EMA */}
-      <div className="h-12">
-        <ScrollingVisualizer
-          data={spectrumData}
-          height={48}
-          color="#60A5FA"
-          renderType="line"
-          minValue={80}
-          maxValue={400}
-          maxFreq={8000}
-          backgroundColor="#1a1a1a"
-          smoothingFactor={0.15}
-        />
+      <div className="feature-card">
+        <div className="feature-header">
+          <Activity className="w-4 h-4" />
+          <span>音高</span>
+        </div>
+        <div className="feature-content">
+          <ScrollingVisualizer
+            data={spectrumData}
+            height={48}
+            color="#60A5FA"
+            renderType="line"
+            minValue={80}
+            maxValue={400}
+            maxFreq={8000}
+            backgroundColor="#1a1a1a"
+            smoothingFactor={0.15}
+          />
+        </div>
       </div>
 
       {/* 总能量移动均线 - 修改显示范围 */}
-      <div className="h-12">
-        <ScrollingVisualizer
-          data={[calculateTotalEnergy(spectrumData)]}
-          height={48}
-          color="#34D399"
-          renderType="line"
-          minValue={-80}   // 调整最小值
-          maxValue={-20}   // 调整最大值
-          backgroundColor="#1a1a1a"
-          smoothingFactor={0.1}
-          displayUnit="dB"
-          isEnergy={true}
-        />
+      <div className="feature-card">
+        <div className="feature-header">
+          <Activity className="w-4 h-4" />
+          <span>总能量</span>
+        </div>
+        <div className="feature-content">
+          <ScrollingVisualizer
+            data={[calculateTotalEnergy(spectrumData)]}
+            height={48}
+            color="#34D399"
+            renderType="line"
+            minValue={-80}   // 调整最小值
+            maxValue={-20}   // 调整最大值
+            backgroundColor="#1a1a1a"
+            smoothingFactor={0.1}
+            displayUnit="dB"
+            isEnergy={true}
+          />
+        </div>
       </div>
 
       {/* Pitch 和 VAD 状态 */}
-      <div className="grid grid-cols-2 gap-4 mt-4">
-        <div className="relative">
-          <h3 className="flex items-center gap-2">
-            Pitch
-            <span
-              className={`inline-block w-2 h-2 rounded-full ${vadStatus ? 'bg-green-500' : 'bg-red-500'
-                }`}
-            />
-          </h3>
-          <div className="h-16">
-            <ScrollingVisualizer
-              data={pitchArray}
-              height={64}
-              renderType="line"
-              minValue={80}
-              maxValue={400}
-              color={vadStatus ? "#60A5FA" : "#9CA3AF"}
-              backgroundColor="#1a1a1a"
-              smoothingFactor={0.15}
-            />
-          </div>
+      <div className="feature-card">
+        <div className="feature-header">
+          <Activity className="w-4 h-4" />
+          <span>Pitch</span>
         </div>
-        <div className="...">
-          <h3>Loudness</h3>
-          <div className="h-16">
-            <ScrollingVisualizer
-              data={loudnessArray}
-              height={64}
-              renderType="line"
-              minValue={-60}  // 最小分贝值
-              maxValue={0}    // 最大分贝值
-              color="#34D399"
-              backgroundColor="#1a1a1a"
-              smoothingFactor={0.1}
-              displayUnit="dB"
-              isEnergy={true}
-            />
-          </div>
+        <div className="feature-content">
+          <ScrollingVisualizer
+            data={pitchArray}
+            height={64}
+            renderType="line"
+            minValue={80}
+            maxValue={400}
+            color={vadStatus ? "#60A5FA" : "#9CA3AF"}
+            backgroundColor="#1a1a1a"
+            smoothingFactor={0.15}
+          />
+        </div>
+      </div>
+
+      {/* Loudness */}
+      <div className="feature-card">
+        <div className="feature-header">
+          <Activity className="w-4 h-4" />
+          <span>Loudness</span>
+        </div>
+        <div className="feature-content">
+          <ScrollingVisualizer
+            data={loudnessArray}
+            height={64}
+            renderType="line"
+            minValue={-60}  // 最小分贝值
+            maxValue={0}    // 最大分贝值
+            color="#34D399"
+            backgroundColor="#1a1a1a"
+            smoothingFactor={0.1}
+            displayUnit="dB"
+            isEnergy={true}
+          />
         </div>
       </div>
     </div>

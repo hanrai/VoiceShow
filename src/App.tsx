@@ -6,9 +6,15 @@ import { ClusteringViz } from './components/ClusteringViz';
 import { useAudioCapture } from './hooks/useAudioCapture';
 import { AnimatedMicrophone } from './components/AnimatedMicrophone';
 import { AudioFeatures } from './components/AudioFeatures';
+import { CoughVAD } from './components/CoughVAD';
+import { CoughVisualization } from './components/CoughVisualization';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { ScrollingVisualizer } from './components/ScrollingVisualizer';
 
 function App() {
+  const [features, setFeatures] = useState<number[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [detectionResult, setDetectionResult] = useState(false);
   const {
     audioData,
     spectrumData,
@@ -41,12 +47,26 @@ function App() {
             <div className="flex-shrink-0">
               <AnimatedMicrophone />
             </div>
-            <div className="h-16 flex-1 overflow-hidden">
-              {audioData && <AudioVisualizer data={audioData} />}
+            <div className="h-24 flex-1 overflow-hidden">
+              {spectrumData && (
+                <ScrollingVisualizer
+                  data={Array.from(spectrumData)}
+                  height={96}
+                  renderType="spectrum"
+                  minValue={-100}
+                  maxValue={0}
+                  maxFreq={8000}
+                  useColormap={true}
+                  highlightPeak={true}
+                  backgroundColor="transparent"
+                  color="#60A5FA"
+                />
+              )}
             </div>
           </div>
           <AudioFeatures
-            spectrumData={spectrumData ? Array.from(spectrumData) : []}
+            waveformData={audioData ? Array.from(audioData) : []}
+            spectrumData={[]}
             mfccData={mfccData || []}
             pitchData={pitchData}
             loudnessData={loudnessData}
@@ -64,6 +84,30 @@ function App() {
             vadStatus={vadStatus}
           />
         )}
+
+        {audioData && (
+          <CoughVAD
+            audioData={audioData}
+            onVADResult={(result) => {
+              setDetectionResult(result);
+              setIsProcessing(false);
+            }}
+            onFeatures={(features) => {
+              setFeatures(features);
+              setIsProcessing(true);
+            }}
+          />
+        )}
+
+        <ErrorBoundary>
+          <div className="visualization-container">
+            <CoughVisualization
+              features={features}
+              isProcessing={isProcessing}
+              detectionResult={detectionResult}
+            />
+          </div>
+        </ErrorBoundary>
       </div>
     </div>
   );

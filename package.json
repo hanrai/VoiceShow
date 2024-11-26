@@ -11,12 +11,15 @@
 	},
 	"dependencies": {
 		"@ricky0123/vad-web": "^0.0.19",
+		"@tensorflow/tfjs": "^4.22.0",
 		"d3": "^7.8.5",
 		"echarts": "^5.4.3",
 		"framer-motion": "^10.16.4",
+		"konva": "^9.3.16",
 		"lucide-react": "^0.292.0",
 		"react": "^18.2.0",
-		"react-dom": "^18.2.0"
+		"react-dom": "^18.2.0",
+		"react-konva": "^18.2.10"
 	},
 	"devDependencies": {
 		"@types/d3": "^7.4.3",
