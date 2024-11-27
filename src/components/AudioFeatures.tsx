@@ -68,16 +68,7 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
 
   return (
     <div className="w-full overflow-x-hidden">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 px-4 max-w-[2000px] mx-auto">
-        {/* 波形图
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden min-h-[120px]">
-          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-            <Activity className="w-3 h-3" />
-            <span>波形</span>
-          </div>
-          <AudioVisualizer data={waveformData} type="waveform" />
-        </div> */}
-
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2 px-2 max-w-[2000px] mx-auto">
         {/* MFCC图 */}
         <div className="relative bg-gray-900 rounded-lg overflow-hidden">
           <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">

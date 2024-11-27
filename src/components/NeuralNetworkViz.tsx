@@ -76,18 +76,18 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({
   const networkStructure = useMemo(() => {
     return {
       layers: [
-        { name: 'Input', nodes: 5, xRatio: 0.12 },
-        { name: 'LSTM', nodes: 6, xRatio: 0.38 },
-        { name: 'Dense', nodes: 4, xRatio: 0.62 },
-        { name: 'Output', nodes: 2, xRatio: 0.88 }
+        { name: 'Input', nodes: 5, xRatio: 0.08 },
+        { name: 'LSTM', nodes: 6, xRatio: 0.35 },
+        { name: 'Dense', nodes: 4, xRatio: 0.65 },
+        { name: 'Output', nodes: 2, xRatio: 0.92 }
       ]
     };
   }, []);
 
   // 计算节点位置
   const getNodePositions = (layer: { nodes: number }) => {
-    const totalHeight = 50;
-    const margin = 8;
+    const totalHeight = 45;
+    const margin = 6;
     const usableHeight = totalHeight - 2 * margin;
     const spacing = usableHeight / (layer.nodes + 1);
     return Array(layer.nodes).fill(0).map((_, i) => margin + spacing * (i + 1));
@@ -144,8 +144,8 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({
   }, [networkStructure]);
 
   return (
-    <div className="w-full h-[200px] bg-gray-800 rounded-lg p-2">
-      <svg width="100%" height="100%" viewBox="0 0 100 50" preserveAspectRatio="xMidYMid meet">
+    <div className="w-full h-[120px] bg-gray-800 rounded-lg p-2">
+      <svg width="100%" height="100%" viewBox="0 0 100 45" preserveAspectRatio="xMidYMid meet">
         {/* 连接线 */}
         <g>
           {connections.map((conn, idx) => (
@@ -185,9 +185,9 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({
               {/* 层标签 */}
               <text
                 x={layer.xRatio * 100}
-                y={5}
+                y={4}
                 textAnchor="middle"
-                className="text-[3px] fill-gray-400"
+                className="text-[2.5px] fill-gray-400"
               >
                 {layer.name}
               </text>
@@ -199,7 +199,7 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({
                     key={nodeIndex}
                     cx={layer.xRatio * 100}
                     cy={y}
-                    r={1.5}
+                    r={1.2}
                     fill={getElementColor(nodeIndices[nodeKey])}
                     className="transition-colors duration-300"
                     style={{
