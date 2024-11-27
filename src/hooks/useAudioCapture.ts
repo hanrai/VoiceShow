@@ -63,15 +63,12 @@ export const useAudioCapture = () => {
 			!dataArrayRef.current ||
 			!frequencyArrayRef.current
 		) {
-			console.log('Missing required refs in updateData');
 			return;
 		}
 
 		try {
 			// 获取时域数据
 			analyserRef.current.getFloatTimeDomainData(dataArrayRef.current);
-
-			// 获取频域数据
 			analyserRef.current.getFloatFrequencyData(frequencyArrayRef.current);
 
 			// 检查是否有有效的音频数据
@@ -80,47 +77,30 @@ export const useAudioCapture = () => {
 					dataArrayRef.current.length
 			);
 
-			// 每秒打印一次音频数据状态
-			if (Date.now() % 1000 < 50) {
-				console.log('Audio buffer stats:', {
-					rms: rms.toFixed(6),
-					peakValue: Math.max(...dataArrayRef.current.map(Math.abs)).toFixed(6),
-					avgValue: (
-						dataArrayRef.current.reduce((a, b) => a + Math.abs(b), 0) /
-						dataArrayRef.current.length
-					).toFixed(6),
-					bufferSize: dataArrayRef.current.length,
-					hasSignal: rms > 0.0001 ? 'Yes' : 'No',
-				});
-			}
+			// 始终计算 MFCC
+			const features = Meyda.extract(
+				['rms', 'spectralCentroid', 'zcr', 'mfcc', 'loudness'],
+				dataArrayRef.current
+			) as AudioFeatures;
 
-			if (rms > 0.0001) {
-				try {
-					// 使用 Meyda 提取特征
-					const features = Meyda.extract(
-						['rms', 'spectralCentroid', 'zcr', 'mfcc', 'loudness'],
-						dataArrayRef.current
-					) as AudioFeatures;
-
-					if (isMountedRef.current) {
-						setAudioState(prev => ({
-							...prev,
-							audioData: new Float32Array(dataArrayRef.current!),
-							spectrumData: new Float32Array(frequencyArrayRef.current!),
-							mfccData: features.mfcc,
-							pitchData: features.spectralCentroid,
-							loudnessData: features.loudness.total,
-							features: features,
-							vadStatus: true,
-						}));
-					}
-				} catch (error) {
-					console.error('Error extracting features:', error);
-				}
-			} else {
-				if (isMountedRef.current) {
+			if (isMountedRef.current) {
+				if (rms > 0.0001) {
+					// 有声音信号时更新所有特征
 					setAudioState(prev => ({
 						...prev,
+						audioData: new Float32Array(dataArrayRef.current!),
+						spectrumData: new Float32Array(frequencyArrayRef.current!),
+						mfccData: features.mfcc,
+						pitchData: features.spectralCentroid,
+						loudnessData: features.loudness.total,
+						features: features,
+						vadStatus: true,
+					}));
+				} else {
+					// 无声音信号时只更新 MFCC
+					setAudioState(prev => ({
+						...prev,
+						mfccData: features.mfcc,
 						vadStatus: false,
 					}));
 				}
