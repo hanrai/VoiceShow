@@ -1,301 +1,260 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Meyda from 'meyda';
-import * as VAD from '@ricky0123/vad-web';
 
-interface MeydaFeatures {
+interface AudioFeatures {
+	rms: number;
+	spectralCentroid: number;
+	zcr: number;
 	mfcc: number[];
-	[key: string]: any;
+	loudness: { total: number };
 }
 
-interface MeydaAnalyzer {
-	start: () => void;
-	stop: () => void;
-	get: (features: string[]) => MeydaFeatures;
-}
-
-declare const window: Window & {
-	Meyda: {
-		createMeydaAnalyzer: (config: {
-			audioContext: AudioContext;
-			source: MediaStreamAudioSourceNode;
-			bufferSize: number;
-			numberOfMFCCCoefficients: number;
-			featureExtractors: string[];
-			callback: (features: MeydaFeatures) => void;
-		}) => MeydaAnalyzer;
-	};
-};
-
-const detectPitch = (buffer: Float32Array, sampleRate: number): number => {
-	const minFreq = 80; // 人声最低频率约 80Hz
-	const maxFreq = 400; // 人声最高频率约 400Hz
-	const minPeriod = Math.floor(sampleRate / maxFreq);
-	const maxPeriod = Math.floor(sampleRate / minFreq);
-
-	// 计算自相关
-	const correlations = new Float32Array(maxPeriod);
-	let maxAbs = 0;
-
-	// 使用中心削波自相关，但降低削波阈值
-	for (let lag = minPeriod; lag < maxPeriod; lag++) {
-		let sum = 0;
-		let count = 0;
-		for (let i = 0; i < buffer.length - lag; i++) {
-			sum += buffer[i] * buffer[i + lag];
-			count++;
-		}
-		correlations[lag] = count > 0 ? sum / count : 0;
-		maxAbs = Math.max(maxAbs, Math.abs(correlations[lag]));
-	}
-
-	// 归一化
-	if (maxAbs > 0) {
-		for (let i = 0; i < maxPeriod; i++) {
-			correlations[i] /= maxAbs;
-		}
-	}
-
-	// 寻找峰值
-	let maxCorrelation = -1;
-	let period = 0;
-	const CORRELATION_THRESHOLD = 0.1; // 降低相关性要求
-	const PEAK_THRESHOLD = 1.05; // 降低峰值要求
-
-	for (let lag = minPeriod; lag < maxPeriod; lag++) {
-		if (
-			correlations[lag] > CORRELATION_THRESHOLD &&
-			correlations[lag] > maxCorrelation &&
-			correlations[lag] > correlations[lag - 1] * PEAK_THRESHOLD &&
-			correlations[lag] > correlations[lag + 1] * PEAK_THRESHOLD
-		) {
-			// 检查是否是谐波
-			let isHarmonic = false;
-			for (
-				let sublag = Math.max(minPeriod, Math.floor(lag / 2));
-				sublag < lag - 1;
-				sublag++
-			) {
-				if (correlations[sublag] > correlations[lag] * 0.9) {
-					isHarmonic = true;
-					break;
-				}
-			}
-
-			if (!isHarmonic) {
-				maxCorrelation = correlations[lag];
-				period = lag;
-			}
-		}
-	}
-
-	return period > 0 ? sampleRate / period : 0;
-};
-
-// 添加响度计算函数
-const calculateLoudness = (buffer: Float32Array): number => {
-	// 计算RMS
-	let sum = 0;
-	for (let i = 0; i < buffer.length; i++) {
-		sum += buffer[i] * buffer[i];
-	}
-	const rms = Math.sqrt(sum / buffer.length);
-
-	// 转换为分贝，使用较小的参考值以获得更好的显示范围
-	const REF_VALUE = 0.00001;
-	const db = 20 * Math.log10(Math.max(rms, REF_VALUE));
-
-	// 限制范围在 -60 到 0 dB
-	return Math.max(-60, Math.min(0, db));
-};
-
-interface UseAudioCaptureReturn {
+interface AudioState {
 	audioData: Float32Array | null;
 	spectrumData: Float32Array | null;
 	mfccData: number[] | null;
 	pitchData: number;
 	loudnessData: number;
 	vadStatus: boolean;
-	startCapture: () => Promise<void>;
+	features: AudioFeatures | null;
 	isCapturing: boolean;
 }
 
 export const useAudioCapture = () => {
-	const [isCapturing, setIsCapturing] = useState(false);
-	const [audioData, setAudioData] = useState<Float32Array | null>(null);
-	const [spectrumData, setSpectrumData] = useState<Float32Array | null>(null);
-	const [mfccData, setMfccData] = useState<number[] | null>(null);
-	const [pitchData, setPitchData] = useState<number>(0);
-	const [loudnessData, setLoudnessData] = useState<number>(0);
-	const [vadStatus, setVadStatus] = useState(false);
+	const [audioState, setAudioState] = useState<AudioState>({
+		audioData: null,
+		spectrumData: null,
+		mfccData: null,
+		pitchData: 0,
+		loudnessData: 0,
+		vadStatus: false,
+		features: null,
+		isCapturing: false,
+	});
 
-	const audioContextRef = useRef<AudioContext | null>(null);
-	const analyserRef = useRef<AnalyserNode | null>(null);
-	const meydaAnalyzerRef = useRef<MeydaAnalyzer | null>(null);
+	const audioContextRef = useRef<AudioContext>();
+	const analyserRef = useRef<AnalyserNode>();
+	const sourceRef = useRef<MediaStreamAudioSourceNode>();
+	const gainNodeRef = useRef<GainNode>();
+	const streamRef = useRef<MediaStream>();
 	const animationFrameRef = useRef<number>();
 	const dataArrayRef = useRef<Float32Array>();
 	const frequencyArrayRef = useRef<Float32Array>();
 	const isMountedRef = useRef(true);
 
+	// 检查音频设备
+	const checkAudioDevices = async () => {
+		try {
+			const devices = await navigator.mediaDevices.enumerateDevices();
+			const audioInputs = devices.filter(
+				device => device.kind === 'audioinput'
+			);
+			console.log('Available audio inputs:', audioInputs);
+			return audioInputs.length > 0;
+		} catch (error) {
+			console.error('Error checking audio devices:', error);
+			return false;
+		}
+	};
+
 	const updateData = useCallback(() => {
 		if (
 			!analyserRef.current ||
 			!dataArrayRef.current ||
-			!frequencyArrayRef.current ||
-			!isMountedRef.current
+			!frequencyArrayRef.current
 		) {
-			console.log('Missing required references in updateData');
-			return;
-		}
-
-		analyserRef.current.getFloatTimeDomainData(dataArrayRef.current);
-		const newData = new Float32Array(dataArrayRef.current);
-
-		analyserRef.current.getFloatFrequencyData(frequencyArrayRef.current);
-		const usefulBins = Math.floor(frequencyArrayRef.current.length / 2);
-		const newSpectrumData = new Float32Array(
-			frequencyArrayRef.current.subarray(0, usefulBins)
-		);
-
-		if (isMountedRef.current && audioContextRef.current) {
-			// 修改数据验证逻辑
-			const hasValidData =
-				newSpectrumData.length > 0 &&
-				newSpectrumData.some(value => value > -100); // 检查是否有有效的频谱数据
-
-			if (!hasValidData) {
-				console.log('Waiting for valid audio data...');
-				animationFrameRef.current = requestAnimationFrame(updateData);
-				return;
-			}
-
-			// 计算音高和响度
-			const pitch = detectPitch(newData, audioContextRef.current.sampleRate);
-			const loudness = calculateLoudness(newData);
-
-			// 更新所有状态
-			setAudioData(newData);
-			setSpectrumData(newSpectrumData);
-			setPitchData(pitch);
-			setLoudnessData(loudness);
-
-			if (meydaAnalyzerRef.current) {
-				const features = meydaAnalyzerRef.current.get(['mfcc']);
-				if (features?.mfcc) {
-					setMfccData(features.mfcc);
-				}
-			}
-
-			animationFrameRef.current = requestAnimationFrame(updateData);
-		}
-	}, []);
-
-	const startCapture = useCallback(async () => {
-		if (audioContextRef.current) {
-			console.log('Audio capture already started');
+			console.log('Missing required refs in updateData');
 			return;
 		}
 
 		try {
+			// 获取时域数据
+			analyserRef.current.getFloatTimeDomainData(dataArrayRef.current);
+
+			// 获取频域数据
+			analyserRef.current.getFloatFrequencyData(frequencyArrayRef.current);
+
+			// 检查是否有有效的音频数据
+			const rms = Math.sqrt(
+				dataArrayRef.current.reduce((acc, val) => acc + val * val, 0) /
+					dataArrayRef.current.length
+			);
+
+			// 每秒打印一次音频数据状态
+			if (Date.now() % 1000 < 50) {
+				console.log('Audio buffer stats:', {
+					rms: rms.toFixed(6),
+					peakValue: Math.max(...dataArrayRef.current.map(Math.abs)).toFixed(6),
+					avgValue: (
+						dataArrayRef.current.reduce((a, b) => a + Math.abs(b), 0) /
+						dataArrayRef.current.length
+					).toFixed(6),
+					bufferSize: dataArrayRef.current.length,
+					hasSignal: rms > 0.0001 ? 'Yes' : 'No',
+				});
+			}
+
+			if (rms > 0.0001) {
+				try {
+					// 使用 Meyda 提取特征
+					const features = Meyda.extract(
+						['rms', 'spectralCentroid', 'zcr', 'mfcc', 'loudness'],
+						dataArrayRef.current
+					) as AudioFeatures;
+
+					if (isMountedRef.current) {
+						setAudioState(prev => ({
+							...prev,
+							audioData: new Float32Array(dataArrayRef.current!),
+							spectrumData: new Float32Array(frequencyArrayRef.current!),
+							mfccData: features.mfcc,
+							pitchData: features.spectralCentroid,
+							loudnessData: features.loudness.total,
+							features: features,
+							vadStatus: true,
+						}));
+					}
+				} catch (error) {
+					console.error('Error extracting features:', error);
+				}
+			} else {
+				if (isMountedRef.current) {
+					setAudioState(prev => ({
+						...prev,
+						vadStatus: false,
+					}));
+				}
+			}
+
+			// 继续下一帧
+			animationFrameRef.current = requestAnimationFrame(updateData);
+		} catch (error) {
+			console.error('Error in updateData:', error);
+		}
+	}, []);
+
+	const startCapture = useCallback(async () => {
+		try {
+			// 检查音频设备
+			const hasAudioInputs = await checkAudioDevices();
+			if (!hasAudioInputs) {
+				throw new Error('No audio input devices found');
+			}
+
+			// 停止现有的音频上下文和流
+			if (audioContextRef.current) {
+				await audioContextRef.current.close();
+			}
+			if (streamRef.current) {
+				streamRef.current.getTracks().forEach(track => track.stop());
+			}
+
+			// 请求麦克风权限
 			const stream = await navigator.mediaDevices.getUserMedia({
 				audio: {
-					sampleRate: 48000,
-					channelCount: 1,
 					echoCancellation: true,
 					noiseSuppression: true,
+					autoGainControl: false,
+					channelCount: 1,
+					sampleRate: 44100,
 				},
 			});
 
+			console.log('Microphone stream created:', {
+				tracks: stream.getAudioTracks().map(track => ({
+					label: track.label,
+					enabled: track.enabled,
+					muted: track.muted,
+					readyState: track.readyState,
+				})),
+			});
+
+			streamRef.current = stream;
+
+			// 创建音频上下文
 			audioContextRef.current = new AudioContext({
-				sampleRate: 48000,
+				sampleRate: 44100,
 				latencyHint: 'interactive',
 			});
 
+			console.log('Audio context state:', audioContextRef.current.state);
+			await audioContextRef.current.resume();
+
+			// 创建增益节点
+			gainNodeRef.current = audioContextRef.current.createGain();
+			gainNodeRef.current.gain.value = 10.0; // 增加增益值
+
+			// 创建分析器节点
 			analyserRef.current = audioContextRef.current.createAnalyser();
 			analyserRef.current.fftSize = 2048;
-			analyserRef.current.smoothingTimeConstant = 0.85;
+			analyserRef.current.smoothingTimeConstant = 0.8;
 			analyserRef.current.minDecibels = -90;
 			analyserRef.current.maxDecibels = -10;
 
-			const source = audioContextRef.current.createMediaStreamSource(stream);
-			source.connect(analyserRef.current);
+			// 创建源节点并连接音频处理链
+			sourceRef.current =
+				audioContextRef.current.createMediaStreamSource(stream);
+			sourceRef.current.connect(gainNodeRef.current);
+			gainNodeRef.current.connect(analyserRef.current);
 
-			meydaAnalyzerRef.current = window.Meyda.createMeydaAnalyzer({
-				audioContext: audioContextRef.current,
-				source: source,
-				bufferSize: 1024,
-				numberOfMFCCCoefficients: 13,
-				featureExtractors: ['mfcc'],
-				callback: (features: MeydaFeatures) => {
-					if (features.mfcc && isMountedRef.current) {
-						setMfccData(features.mfcc);
-					}
-				},
-			});
-
-			meydaAnalyzerRef.current.start();
-
+			// 初始化缓冲区
 			const bufferLength = analyserRef.current.frequencyBinCount;
 			dataArrayRef.current = new Float32Array(bufferLength);
 			frequencyArrayRef.current = new Float32Array(bufferLength);
 
+			// 初始化 Meyda
+			Meyda.bufferSize = bufferLength;
+			Meyda.sampleRate = audioContextRef.current.sampleRate;
+			Meyda.windowingFunction = 'hanning';
+			Meyda.numberOfMFCCCoefficients = 13;
+
 			console.log('Audio capture started:', {
-				fftSize: analyserRef.current.fftSize,
-				bufferLength,
 				sampleRate: audioContextRef.current.sampleRate,
+				bufferSize: bufferLength,
+				fftSize: analyserRef.current.fftSize,
+				contextState: audioContextRef.current.state,
+				gainValue: gainNodeRef.current.gain.value,
 				analyserConfig: {
-					smoothingTimeConstant: analyserRef.current.smoothingTimeConstant,
 					minDecibels: analyserRef.current.minDecibels,
 					maxDecibels: analyserRef.current.maxDecibels,
+					smoothingTimeConstant: analyserRef.current.smoothingTimeConstant,
 				},
 			});
 
-			setIsCapturing(true);
+			setAudioState(prev => ({ ...prev, isCapturing: true }));
 			updateData();
 		} catch (error) {
-			console.error('Error accessing microphone:', error);
+			console.error('Error starting audio capture:', error);
 		}
 	}, [updateData]);
 
 	useEffect(() => {
 		isMountedRef.current = true;
-
-		let vadModel: any;
-
-		const initVAD = async () => {
-			vadModel = await VAD.create({
-				onSpeechStart: () => setVadStatus(true),
-				onSpeechEnd: () => setVadStatus(false),
-			});
-			await vadModel.start();
-		};
-
-		initVAD();
+		startCapture();
 
 		return () => {
 			isMountedRef.current = false;
 			if (animationFrameRef.current) {
 				cancelAnimationFrame(animationFrameRef.current);
 			}
-			if (meydaAnalyzerRef.current) {
-				meydaAnalyzerRef.current.stop();
-			}
 			if (audioContextRef.current) {
 				audioContextRef.current.close();
 			}
-			if (vadModel) {
-				vadModel.destroy();
+			if (streamRef.current) {
+				streamRef.current.getTracks().forEach(track => track.stop());
 			}
 		};
-	}, []);
+	}, [startCapture]);
 
 	return {
-		audioData,
-		spectrumData,
-		mfccData,
-		pitchData,
-		loudnessData,
-		vadStatus,
+		audioData: audioState.audioData,
+		spectrumData: audioState.spectrumData,
+		mfccData: audioState.mfccData,
+		pitchData: audioState.pitchData,
+		loudnessData: audioState.loudnessData,
+		vadStatus: audioState.vadStatus,
+		features: audioState.features,
+		isCapturing: audioState.isCapturing,
 		startCapture,
-		isCapturing,
 	};
 };

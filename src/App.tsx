@@ -10,11 +10,12 @@ import { CoughVAD } from './components/CoughVAD';
 import { CoughVisualization } from './components/CoughVisualization';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ScrollingVisualizer } from './components/ScrollingVisualizer';
+import { AudioEvent } from './components/CoughVAD';
 
 function App() {
   const [features, setFeatures] = useState<number[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [detectionResult, setDetectionResult] = useState(false);
+  const [currentEvent, setCurrentEvent] = useState<AudioEvent | null>(null);
   const {
     audioData,
     spectrumData,
@@ -25,24 +26,15 @@ function App() {
     isCapturing,
     vadStatus
   } = useAudioCapture();
-  const [timestamp, setTimestamp] = useState(Date.now());
 
   useEffect(() => {
     startCapture();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimestamp(Date.now());
-    }, 1000 / 22); // 22fps
-
-    return () => clearInterval(timer);
-  }, []);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
-      <div className="max-w-[2000px] mx-auto p-4">
-        <div className="bg-gray-800 rounded-lg p-6">
+      <div className="max-w-[2000px] mx-auto p-4 pb-[180px]">
+        <div className="bg-gray-800 rounded-lg p-6 mb-4">
           <div className="flex items-center gap-6">
             <div className="flex-shrink-0">
               <AnimatedMicrophone />
@@ -69,28 +61,31 @@ function App() {
             waveformData={audioData ? Array.from(audioData) : []}
             spectrumData={spectrumData}
             mfccData={mfccData || []}
-            pitchData={pitchData}
-            loudnessData={loudnessData}
+            pitchData={pitchData || 0}
+            loudnessData={loudnessData || 0}
             vadStatus={vadStatus}
           />
         </div>
 
-        <NeuralNetworkViz isProcessing={isProcessing} />
-        {vadStatus && (
-          <ClusteringViz
-            mfccData={mfccData || []}
-            pitchData={pitchData}
-            loudnessData={loudnessData}
-            timestamp={timestamp}
-            vadStatus={vadStatus}
-          />
-        )}
+        <div className="grid grid-cols-1 gap-4 mb-4">
+          <NeuralNetworkViz isProcessing={isProcessing} />
+          {vadStatus && (
+            <ClusteringViz
+              mfccData={mfccData || []}
+              pitchData={pitchData || 0}
+              loudnessData={loudnessData || 0}
+              timestamp={Date.now()}
+              vadStatus={vadStatus}
+            />
+          )}
+        </div>
 
         {audioData && (
           <CoughVAD
             audioData={audioData}
-            onVADResult={(result) => {
-              setDetectionResult(result);
+            onVADResult={(event) => {
+              console.log('Audio event detected:', event);
+              setCurrentEvent(event);
               setIsProcessing(false);
             }}
             onFeatures={(features) => {
@@ -105,7 +100,7 @@ function App() {
             <CoughVisualization
               features={features}
               isProcessing={isProcessing}
-              detectionResult={detectionResult}
+              currentEvent={currentEvent}
             />
           </div>
         </ErrorBoundary>

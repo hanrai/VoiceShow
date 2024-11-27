@@ -1,0 +1,92 @@
+{
+	"modelTopology": {
+		"class_name": "Sequential",
+		"config": {
+			"name": "audio_event_classifier",
+			"layers": [
+				{
+					"class_name": "Dense",
+					"config": {
+						"units": 64,
+						"activation": "relu",
+						"use_bias": true,
+						"name": "dense_1",
+						"trainable": true,
+						"batch_input_shape": [null, 13],
+						"dtype": "float32",
+						"kernel_initializer": {
+							"class_name": "GlorotUniform",
+							"config": { "seed": null }
+						},
+						"bias_initializer": {
+							"class_name": "Zeros",
+							"config": {}
+						}
+					}
+				},
+				{
+					"class_name": "Dropout",
+					"config": {
+						"rate": 0.2,
+						"name": "dropout_1",
+						"trainable": true
+					}
+				},
+				{
+					"class_name": "Dense",
+					"config": {
+						"units": 32,
+						"activation": "relu",
+						"use_bias": true,
+						"name": "dense_2",
+						"trainable": true,
+						"kernel_initializer": {
+							"class_name": "GlorotUniform",
+							"config": { "seed": null }
+						},
+						"bias_initializer": {
+							"class_name": "Zeros",
+							"config": {}
+						}
+					}
+				},
+				{
+					"class_name": "Dense",
+					"config": {
+						"units": 7,
+						"activation": "softmax",
+						"use_bias": true,
+						"name": "dense_3",
+						"trainable": true,
+						"kernel_initializer": {
+							"class_name": "GlorotUniform",
+							"config": { "seed": null }
+						},
+						"bias_initializer": {
+							"class_name": "Zeros",
+							"config": {}
+						}
+					}
+				}
+			]
+		},
+		"keras_version": "2.13.1",
+		"backend": "tensorflow"
+	},
+	"weightsManifest": [
+		{
+			"paths": ["audio_event_model.weights.bin"],
+			"weights": [
+				{ "name": "dense_1/kernel", "shape": [13, 64], "dtype": "float32" },
+				{ "name": "dense_1/bias", "shape": [64], "dtype": "float32" },
+				{ "name": "dense_2/kernel", "shape": [64, 32], "dtype": "float32" },
+				{ "name": "dense_2/bias", "shape": [32], "dtype": "float32" },
+				{ "name": "dense_3/kernel", "shape": [32, 7], "dtype": "float32" },
+				{ "name": "dense_3/bias", "shape": [7], "dtype": "float32" }
+			]
+		}
+	],
+	"format": "layers-model",
+	"generatedBy": "TensorFlow.js v4.11.0",
+	"convertedBy": null
+}
