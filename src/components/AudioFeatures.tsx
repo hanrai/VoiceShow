@@ -136,24 +136,6 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
           />
         </div>
 
-        {/* Pitch */}
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-            <Activity className="w-3 h-3" />
-            <span>Pitch</span>
-          </div>
-          <ScrollingVisualizer
-            data={pitchArray}
-            height={120}
-            renderType="line"
-            minValue={80}
-            maxValue={400}
-            color={vadStatus ? "#60A5FA" : "#9CA3AF"}
-            backgroundColor="#1a1a1a"
-            smoothingFactor={0.15}
-          />
-        </div>
-
         {/* Loudness */}
         <div className="relative bg-gray-900 rounded-lg overflow-hidden">
           <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
