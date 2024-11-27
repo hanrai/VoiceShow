@@ -76,18 +76,21 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({
   const networkStructure = useMemo(() => {
     return {
       layers: [
-        { name: 'Input', nodes: 5, xRatio: 0.08 },
-        { name: 'LSTM', nodes: 6, xRatio: 0.35 },
-        { name: 'Dense', nodes: 4, xRatio: 0.65 },
-        { name: 'Output', nodes: 2, xRatio: 0.92 }
+        { name: 'Input', nodes: 5, xRatio: 0.05 },
+        { name: 'LSTM1', nodes: 8, xRatio: 0.2 },
+        { name: 'LSTM2', nodes: 8, xRatio: 0.35 },
+        { name: 'Dense1', nodes: 6, xRatio: 0.5 },
+        { name: 'Dense2', nodes: 6, xRatio: 0.65 },
+        { name: 'Dense3', nodes: 4, xRatio: 0.8 },
+        { name: 'Output', nodes: 4, xRatio: 0.95 }
       ]
     };
   }, []);
 
   // 计算节点位置
   const getNodePositions = (layer: { nodes: number }) => {
-    const totalHeight = 45;
-    const margin = 6;
+    const totalHeight = 60;
+    const margin = 10;
     const usableHeight = totalHeight - 2 * margin;
     const spacing = usableHeight / (layer.nodes + 1);
     return Array(layer.nodes).fill(0).map((_, i) => margin + spacing * (i + 1));
@@ -144,17 +147,23 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({
   }, [networkStructure]);
 
   return (
-    <div className="w-full h-[120px] bg-gray-800 rounded-lg p-2">
-      <svg width="100%" height="100%" viewBox="0 0 100 45" preserveAspectRatio="xMidYMid meet">
+    <div className="w-full h-[180px] bg-gray-800/50 rounded-lg p-3 backdrop-blur-sm">
+      <svg
+        width="100%"
+        height="100%"
+        viewBox="0 0 200 60"
+        preserveAspectRatio="xMidYMid meet"
+        className="drop-shadow-xl"
+      >
         {/* 连接线 */}
         <g>
           {connections.map((conn, idx) => (
             <path
               key={idx}
-              d={`M ${conn.x1Ratio * 100} ${conn.y1} 
-                 C ${(conn.x1Ratio * 100 + conn.x2Ratio * 100) / 2} ${conn.y1},
-                   ${(conn.x1Ratio * 100 + conn.x2Ratio * 100) / 2} ${conn.y2},
-                   ${conn.x2Ratio * 100} ${conn.y2}`}
+              d={`M ${conn.x1Ratio * 200} ${conn.y1} 
+                 C ${(conn.x1Ratio * 200 + conn.x2Ratio * 200) / 2} ${conn.y1},
+                   ${(conn.x1Ratio * 200 + conn.x2Ratio * 200) / 2} ${conn.y2},
+                   ${conn.x2Ratio * 200} ${conn.y2}`}
               stroke={getElementColor(conn.elementIndex, conn.brightness, true)}
               strokeWidth="0.4"
               fill="none"
@@ -169,7 +178,7 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({
         {/* 发光效果滤镜 */}
         <defs>
           <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="0.3" result="coloredBlur" />
+            <feGaussianBlur stdDeviation="0.4" result="coloredBlur" />
             <feMerge>
               <feMergeNode in="coloredBlur" />
               <feMergeNode in="SourceGraphic" />
@@ -184,10 +193,10 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({
             <g key={layerIndex}>
               {/* 层标签 */}
               <text
-                x={layer.xRatio * 100}
-                y={4}
+                x={layer.xRatio * 200}
+                y={6}
                 textAnchor="middle"
-                className="text-[2.5px] fill-gray-400"
+                className="text-[2.5px] fill-gray-300 font-medium"
               >
                 {layer.name}
               </text>
@@ -197,7 +206,7 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({
                 return (
                   <circle
                     key={nodeIndex}
-                    cx={layer.xRatio * 100}
+                    cx={layer.xRatio * 200}
                     cy={y}
                     r={1.2}
                     fill={getElementColor(nodeIndices[nodeKey])}
