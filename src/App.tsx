@@ -15,6 +15,15 @@ function App() {
   const [features, setFeatures] = useState<number[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentEvent, setCurrentEvent] = useState<AudioEvent | null>(null);
+  const [eventConfidences, setEventConfidences] = useState<{ type: AudioEvent['type']; confidence: number; }[]>([
+    { type: 'cough', confidence: 0 },
+    { type: 'speech', confidence: 0 },
+    { type: 'noise', confidence: 0 },
+    { type: 'laugh', confidence: 0 },
+    { type: 'sneeze', confidence: 0 },
+    { type: 'breath', confidence: 0 }
+  ]);
+
   const {
     audioData,
     spectrumData,
@@ -25,6 +34,17 @@ function App() {
     isCapturing,
     vadStatus
   } = useAudioCapture();
+
+  // 更新事件置信度
+  const updateEventConfidence = (event: AudioEvent) => {
+    setEventConfidences(prev =>
+      prev.map(ec =>
+        ec.type === event.type
+          ? { ...ec, confidence: event.confidence }
+          : { ...ec, confidence: Math.max(0, ec.confidence - 0.1) } // 其他事件的置信度逐渐衰减
+      )
+    );
+  };
 
   useEffect(() => {
     startCapture();
@@ -79,6 +99,7 @@ function App() {
             onVADResult={(event) => {
               console.log('Audio event detected:', event);
               setCurrentEvent(event);
+              updateEventConfidence(event);
               setIsProcessing(false);
             }}
             onFeatures={(features) => {
@@ -89,11 +110,12 @@ function App() {
         )}
 
         <ErrorBoundary>
-          <div className="visualization-container">
+          <div className="visualization-container" style={{ height: '400px' }}>
             <CoughVisualization
               features={features}
               isProcessing={isProcessing}
               currentEvent={currentEvent}
+              eventConfidences={eventConfidences}
             />
           </div>
         </ErrorBoundary>

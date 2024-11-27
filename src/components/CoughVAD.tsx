@@ -2,7 +2,7 @@ import React, { useEffect, useCallback } from 'react';
 import Meyda from 'meyda';
 
 export interface AudioEvent {
-  type: 'cough' | 'speech' | 'noise';
+  type: 'cough' | 'speech' | 'noise' | 'laugh' | 'sneeze' | 'breath';
   confidence: number;
   timestamp: number;
   features: {
@@ -33,6 +33,24 @@ const EVENT_RANGES = {
     spectralCentroid: { min: 200, max: 3000 },
     zcr: { min: 50, max: 2000 },
     loudness: { min: -70, max: -20 }
+  },
+  laugh: {
+    rms: { min: 0.008, max: 0.9 },
+    spectralCentroid: { min: 300, max: 3500 },
+    zcr: { min: 80, max: 2500 },
+    loudness: { min: -65, max: -15 }
+  },
+  sneeze: {
+    rms: { min: 0.015, max: 1.0 },
+    spectralCentroid: { min: 600, max: 4500 },
+    zcr: { min: 120, max: 3500 },
+    loudness: { min: -55, max: -5 }
+  },
+  breath: {
+    rms: { min: 0.003, max: 0.5 },
+    spectralCentroid: { min: 100, max: 2000 },
+    zcr: { min: 30, max: 1500 },
+    loudness: { min: -80, max: -30 }
   },
   noise: {
     rms: { min: 0.001, max: 0.3 },
@@ -90,6 +108,30 @@ export const CoughVAD: React.FC<CoughVADProps> = ({
       score = (
         rmsScore * 0.2 +
         centroidScore * 0.3 +
+        zcrScore * 0.2 +
+        loudnessScore * 0.2 +
+        mfccScore * 0.1
+      );
+    } else if (eventType === 'laugh') {
+      score = (
+        rmsScore * 0.1 +
+        centroidScore * 0.2 +
+        zcrScore * 0.2 +
+        loudnessScore * 0.2 +
+        mfccScore * 0.1
+      );
+    } else if (eventType === 'sneeze') {
+      score = (
+        rmsScore * 0.2 +
+        centroidScore * 0.2 +
+        zcrScore * 0.2 +
+        loudnessScore * 0.2 +
+        mfccScore * 0.1
+      );
+    } else if (eventType === 'breath') {
+      score = (
+        rmsScore * 0.1 +
+        centroidScore * 0.2 +
         zcrScore * 0.2 +
         loudnessScore * 0.2 +
         mfccScore * 0.1
