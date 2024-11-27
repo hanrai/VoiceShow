@@ -69,15 +69,13 @@ function App() {
 
         <div className="grid grid-cols-1 gap-4 mb-4">
           <NeuralNetworkViz isProcessing={isProcessing} />
-          {vadStatus && (
-            <ClusteringViz
-              mfccData={mfccData || []}
-              pitchData={pitchData || 0}
-              loudnessData={loudnessData || 0}
-              timestamp={Date.now()}
-              vadStatus={vadStatus}
-            />
-          )}
+          <ClusteringViz
+            mfccData={mfccData || []}
+            pitchData={pitchData || 0}
+            loudnessData={loudnessData || 0}
+            timestamp={Date.now()}
+            vadStatus={vadStatus}
+          />
         </div>
 
         {audioData && (
