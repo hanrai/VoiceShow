@@ -127,14 +127,6 @@ export const CoughVAD: React.FC<CoughVADProps> = ({
         'loudness'
       ], audioData) as AudioEvent['features'];
 
-      // 打印原始特征值用于调试
-      console.log('Raw features:', {
-        rms: features.rms.toFixed(6),
-        centroid: features.spectralCentroid.toFixed(2),
-        zcr: features.zcr.toFixed(2),
-        loudness: features.loudness.total.toFixed(2)
-      });
-
       // 计算每种事件类型的置信度
       const confidences = Object.keys(EVENT_RANGES).map(type => ({
         type: type as AudioEvent['type'],
