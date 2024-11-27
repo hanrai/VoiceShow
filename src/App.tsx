@@ -40,8 +40,8 @@ function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white p-4">
-      <div className="space-y-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+      <div className="max-w-[2000px] mx-auto p-4">
         <div className="bg-gray-800 rounded-lg p-6">
           <div className="flex items-center gap-6">
             <div className="flex-shrink-0">

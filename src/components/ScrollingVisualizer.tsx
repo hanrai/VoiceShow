@@ -568,7 +568,7 @@ export const ScrollingVisualizer: React.FC<ScrollingVisualizerProps> = ({
       ref={canvasRef}
       width={800}
       height={height}
-      className="w-full h-full"
+      className="w-full h-full max-w-full"
       style={{ backgroundColor }}
     />
   );

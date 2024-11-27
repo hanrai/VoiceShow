@@ -67,110 +67,112 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-      {/* 波形图 */}
-      <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-        <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-          <Activity className="w-3 h-3" />
-          <span>波形</span>
-        </div>
-        <AudioVisualizer data={waveformData} type="waveform" />
-      </div>
+    <div className="w-full overflow-x-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 px-4 max-w-[2000px] mx-auto">
+        {/* 波形图
+        <div className="relative bg-gray-900 rounded-lg overflow-hidden min-h-[120px]">
+          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
+            <Activity className="w-3 h-3" />
+            <span>波形</span>
+          </div>
+          <AudioVisualizer data={waveformData} type="waveform" />
+        </div> */}
 
-      {/* MFCC图 */}
-      <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-        <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-          <Activity className="w-3 h-3" />
-          <span>MFCC</span>
+        {/* MFCC图 */}
+        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
+            <Activity className="w-3 h-3" />
+            <span>MFCC</span>
+          </div>
+          <ScrollingVisualizer
+            data={mfccData}
+            height={120}
+            renderType="heatmap"
+            minValue={-0.2}
+            maxValue={0.2}
+            backgroundColor="#1a1a1a"
+          />
         </div>
-        <ScrollingVisualizer
-          data={mfccData}
-          height={120}
-          renderType="heatmap"
-          minValue={-0.2}
-          maxValue={0.2}
-          backgroundColor="#1a1a1a"
-        />
-      </div>
 
-      {/* 音高图 */}
-      <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-        <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-          <Activity className="w-3 h-3" />
-          <span>音高</span>
+        {/* 音高图 */}
+        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
+            <Activity className="w-3 h-3" />
+            <span>音高</span>
+          </div>
+          <ScrollingVisualizer
+            data={Array.from(spectrumData || new Float32Array())}
+            height={120}
+            renderType="spectrumWithPitch"
+            minValue={-100}
+            maxValue={0}
+            maxFreq={2000}
+            backgroundColor="#1a1a1a"
+            color="#60A5FA"
+            dominantFreq={trackDominantFrequency(spectrumData)}
+            smoothingFactor={0.15}
+            threshold={-60}
+            clearBeforeDraw={true}
+          />
         </div>
-        <ScrollingVisualizer
-          data={Array.from(spectrumData || new Float32Array())}
-          height={120}
-          renderType="spectrumWithPitch"
-          minValue={-100}
-          maxValue={0}
-          maxFreq={2000}
-          backgroundColor="#1a1a1a"
-          color="#60A5FA"
-          dominantFreq={trackDominantFrequency(spectrumData)}
-          smoothingFactor={0.15}
-          threshold={-60}
-          clearBeforeDraw={true}
-        />
-      </div>
 
-      {/* 总能量 */}
-      <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-        <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-          <Activity className="w-3 h-3" />
-          <span>总能量</span>
+        {/* 总能量 */}
+        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
+            <Activity className="w-3 h-3" />
+            <span>总能量</span>
+          </div>
+          <ScrollingVisualizer
+            data={[calculateTotalEnergy(spectrumData)]}
+            height={120}
+            color="#34D399"
+            renderType="line"
+            minValue={-80}
+            maxValue={-20}
+            backgroundColor="#1a1a1a"
+            smoothingFactor={0.1}
+            displayUnit="dB"
+            isEnergy={true}
+          />
         </div>
-        <ScrollingVisualizer
-          data={[calculateTotalEnergy(spectrumData)]}
-          height={120}
-          color="#34D399"
-          renderType="line"
-          minValue={-80}
-          maxValue={-20}
-          backgroundColor="#1a1a1a"
-          smoothingFactor={0.1}
-          displayUnit="dB"
-          isEnergy={true}
-        />
-      </div>
 
-      {/* Pitch */}
-      <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-        <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-          <Activity className="w-3 h-3" />
-          <span>Pitch</span>
+        {/* Pitch */}
+        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
+            <Activity className="w-3 h-3" />
+            <span>Pitch</span>
+          </div>
+          <ScrollingVisualizer
+            data={pitchArray}
+            height={120}
+            renderType="line"
+            minValue={80}
+            maxValue={400}
+            color={vadStatus ? "#60A5FA" : "#9CA3AF"}
+            backgroundColor="#1a1a1a"
+            smoothingFactor={0.15}
+          />
         </div>
-        <ScrollingVisualizer
-          data={pitchArray}
-          height={120}
-          renderType="line"
-          minValue={80}
-          maxValue={400}
-          color={vadStatus ? "#60A5FA" : "#9CA3AF"}
-          backgroundColor="#1a1a1a"
-          smoothingFactor={0.15}
-        />
-      </div>
 
-      {/* Loudness */}
-      <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-        <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-          <Activity className="w-3 h-3" />
-          <span>Loudness</span>
+        {/* Loudness */}
+        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
+            <Activity className="w-3 h-3" />
+            <span>Loudness</span>
+          </div>
+          <ScrollingVisualizer
+            data={loudnessArray}
+            height={120}
+            renderType="line"
+            minValue={-60}
+            maxValue={0}
+            color="#34D399"
+            backgroundColor="#1a1a1a"
+            smoothingFactor={0.1}
+            displayUnit="dB"
+            isEnergy={true}
+          />
         </div>
-        <ScrollingVisualizer
-          data={loudnessArray}
-          height={120}
-          renderType="line"
-          minValue={-60}
-          maxValue={0}
-          color="#34D399"
-          backgroundColor="#1a1a1a"
-          smoothingFactor={0.1}
-          displayUnit="dB"
-          isEnergy={true}
-        />
       </div>
     </div>
   );

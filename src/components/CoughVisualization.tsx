@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Circle, Arrow, Text, Line } from 'react-konva';
 
 interface CoughVisualizationProps {
@@ -12,9 +12,22 @@ export const CoughVisualization: React.FC<CoughVisualizationProps> = ({
   isProcessing,
   detectionResult
 }) => {
-  const stageWidth = window.innerWidth;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [stageWidth, setStageWidth] = useState(800);
   const stageHeight = 160;
   const centerY = stageHeight / 2;
+
+  useEffect(() => {
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setStageWidth(containerRef.current.clientWidth);
+      }
+    };
+
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
   // 创建动态特征点
   const getFeaturePoints = () => {
@@ -34,7 +47,7 @@ export const CoughVisualization: React.FC<CoughVisualizationProps> = ({
   };
 
   return (
-    <div className="cough-visualization">
+    <div ref={containerRef} className="cough-visualization w-full">
       <Stage width={stageWidth} height={stageHeight}>
         <Layer>
           {/* 1. 音频输入动态显示 */}

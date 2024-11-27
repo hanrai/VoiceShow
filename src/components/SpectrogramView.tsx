@@ -40,7 +40,7 @@ export const SpectrogramView: React.FC<SpectrogramViewProps> = ({ data }) => {
         ref={canvasRef}
         width={800}
         height={200}
-        className="w-full rounded-lg"
+        className="w-full rounded-lg max-w-full"
       />
     </div>
   );
