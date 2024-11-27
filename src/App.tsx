@@ -68,7 +68,10 @@ function App() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 mb-4">
-          <NeuralNetworkViz isProcessing={isProcessing} />
+          <NeuralNetworkViz
+            isProcessing={isProcessing}
+            mfccData={mfccData || []}
+          />
           <ClusteringViz
             mfccData={mfccData || []}
             pitchData={pitchData || 0}
