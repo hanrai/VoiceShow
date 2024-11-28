@@ -64,17 +64,17 @@ function App() {
           </button>
         </div>
       )}
-      <div className="max-w-[2400px] mx-auto p-1 pb-[90px] pt-[env(safe-area-inset-top)]">
-        <div className="bg-gray-800 rounded-lg p-2 mb-2">
-          <div className="flex items-center gap-2">
+      <div className="max-w-[2400px] mx-auto p-4 pb-[180px] pt-[env(safe-area-inset-top)]">
+        <div className="bg-gray-800 rounded-lg p-6 mb-4">
+          <div className="flex items-center gap-6">
             <div className="flex-shrink-0">
               <AnimatedMicrophone />
             </div>
-            <div className="h-12 flex-1 overflow-hidden">
+            <div className="h-16 flex-1 overflow-hidden">
               {spectrumData && (
                 <ScrollingVisualizer
                   data={Array.from(spectrumData)}
-                  height={48}
+                  height={64}
                   renderType="spectrum"
                   minValue={-100}
                   maxValue={0}
@@ -98,7 +98,7 @@ function App() {
           />
         </div>
 
-        <div className="w-full max-w-[2400px] mx-auto mb-2">
+        <div className="w-full max-w-[2400px] mx-auto mb-4">
           <NeuralNetworkViz
             isProcessing={isProcessing}
             mfccData={mfccData || []}
