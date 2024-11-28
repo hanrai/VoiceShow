@@ -1,16 +1,30 @@
+import Meyda from 'meyda';
+
+interface MeydaFeatures {
+	mfcc: number[];
+}
+
 export function calculateMFCC(
 	audioData: Float32Array,
 	sampleRate: number
 ): number[] {
-	// 简单实现，返回13个MFCC系数
-	const mfccCoefficients = new Array(13).fill(0);
+	try {
+		// 配置 Meyda
+		Meyda.bufferSize = 512;
 
-	// TODO: 实现完整的MFCC计算
-	// 1. 应用窗函数
-	// 2. 计算FFT
-	// 3. 计算Mel滤波器组
-	// 4. 取对数
-	// 5. 应用DCT
+		// 计算 MFCC
+		const features = Meyda.extract(['mfcc'], audioData) as MeydaFeatures;
 
-	return mfccCoefficients;
+		// 检查是否成功获取到 MFCC
+		if (!features || !features.mfcc) {
+			console.warn('Failed to extract MFCC features');
+			return new Array(13).fill(0);
+		}
+
+		// 返回 13 个 MFCC 系数
+		return features.mfcc.slice(0, 13);
+	} catch (error) {
+		console.error('Error calculating MFCC:', error);
+		return new Array(13).fill(0);
+	}
 }
