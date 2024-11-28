@@ -76,10 +76,36 @@ const renderLine = (
   const historyLength = Math.min(data.length, MAX_HISTORY);
   const stepSize = width / (historyLength - 1);
 
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
+  // 创建渐变
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(1, 'transparent');
 
+  // 绘制填充区域
+  ctx.beginPath();
+  data.forEach((value, index) => {
+    const x = index * stepSize;
+    const normalizedValue = (value - minValue) / (maxValue - minValue);
+    const y = height - (normalizedValue * height);
+
+    if (index === 0) {
+      ctx.moveTo(x, height);
+      ctx.lineTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+
+  // 完成填充路径
+  ctx.lineTo(width, height);
+  ctx.closePath();
+
+  // 填充渐变
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  // 绘制线条
+  ctx.beginPath();
   data.forEach((value, index) => {
     const x = index * stepSize;
     const normalizedValue = (value - minValue) / (maxValue - minValue);
@@ -92,6 +118,8 @@ const renderLine = (
     }
   });
 
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
   ctx.stroke();
 };
 
@@ -106,6 +134,10 @@ const renderHeatmap = (
 ) => {
   const binHeight = height / data.length;
 
+  // 创建发光效果
+  ctx.shadowBlur = 5;
+  ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+
   data.forEach((value, index) => {
     const normalizedValue = (value - minValue) / (maxValue - minValue);
     const y = index * binHeight;
@@ -113,6 +145,9 @@ const renderHeatmap = (
     ctx.fillStyle = getViridisColor(normalizedValue);
     ctx.fillRect(width - 1, y, 1, binHeight);
   });
+
+  // 重置发光效果
+  ctx.shadowBlur = 0;
 
   // 左移现有图像
   const imageData = ctx.getImageData(1, 0, width - 1, height);
@@ -134,6 +169,10 @@ const renderSpectrum = (
   let maxEnergy = -Infinity;
   let maxEnergyIndex = 0;
 
+  // 创建发光效果
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = 'rgba(96, 165, 250, 0.5)';
+
   data.forEach((value, index) => {
     if (value > maxEnergy) {
       maxEnergy = value;
@@ -153,10 +192,13 @@ const renderSpectrum = (
     ctx.fillRect(x, height - barHeight, barWidth - 1, barHeight);
 
     if (highlightPeak && index === maxEnergyIndex) {
-      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.fillRect(x - 1, 0, barWidth + 2, height);
     }
   });
+
+  // 重置发光效果
+  ctx.shadowBlur = 0;
 };
 
 // 渲染带音高的频谱
@@ -171,10 +213,25 @@ const renderSpectrumWithPitch = (
   maxFreq: number,
   threshold: number
 ) => {
+  // 创建渐变背景
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, 'rgba(30, 58, 138, 0.3)');
+  gradient.addColorStop(1, 'rgba(30, 58, 138, 0.1)');
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+
+  // 渲染频谱
   renderSpectrum(ctx, data, width, height, minValue, maxValue, true, false);
 
+  // 如果有主频率，绘制标记线
   if (dominantFreq !== null && dominantFreq !== undefined) {
     const x = (dominantFreq / maxFreq) * width;
+
+    // 绘制发光效果
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
+
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -182,9 +239,13 @@ const renderSpectrumWithPitch = (
     ctx.lineTo(x, height);
     ctx.stroke();
 
-    ctx.fillStyle = 'white';
-    ctx.font = '12px Arial';
+    // 显示频率值
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = '10px system-ui';
     ctx.fillText(`${Math.round(dominantFreq)}Hz`, x + 5, 15);
+
+    // 重置发光效果
+    ctx.shadowBlur = 0;
   }
 };
 

@@ -48,9 +48,9 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
   loudnessData = 0,
   vadStatus
 }) => {
-  // 在组件内部，将单个数值转换为数组进行显示
-  const pitchArray = [pitchData];
-  const loudnessArray = [loudnessData];
+  // 确保所有数据都有有效的默认值
+  const safeSpectrumData = spectrumData || new Float32Array();
+  const safeMfccData = mfccData.length > 0 ? mfccData : new Array(13).fill(0);
 
   // 修改总能量计算函数以支持两种类型
   const calculateTotalEnergy = (spectrum: Float32Array | null): number => {
@@ -66,44 +66,38 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
     return validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
   };
 
-  // 确保所有数据都有有效的默认值
-  const safeSpectrumData = spectrumData || new Float32Array();
-  const safeMfccData = mfccData.length > 0 ? mfccData : new Array(13).fill(0);
-
   return (
     <div className="w-full overflow-x-hidden">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2 px-2 max-w-[2000px] mx-auto">
+      <div className="grid grid-cols-1 gap-3 mt-2 px-2 max-w-[2000px] mx-auto">
         {/* MFCC图 */}
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden h-24">
-          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-            <Activity className="w-3 h-3" />
-            <span>MFCC</span>
+        <div className="relative bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl overflow-hidden h-16 shadow-lg">
+          <div className="absolute top-1.5 left-2 flex items-center gap-1 z-10">
+            <span className="text-xs font-medium text-white/80">MFCC</span>
           </div>
           <ScrollingVisualizer
             data={safeMfccData}
-            height={96}
+            height={64}
             renderType="heatmap"
             minValue={-0.2}
             maxValue={0.2}
-            backgroundColor="#1a1a1a"
+            backgroundColor="transparent"
           />
         </div>
 
         {/* 音高图 */}
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden h-24">
-          <div className="absolute top-0.5 left-0.5 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1 py-0.5 rounded">
-            <Activity className="w-3 h-3" />
-            <span>音高</span>
+        <div className="relative bg-gradient-to-r from-blue-900/50 to-blue-800/30 rounded-xl overflow-hidden h-16 shadow-lg">
+          <div className="absolute top-1.5 left-2 flex items-center gap-1 z-10">
+            <span className="text-xs font-medium text-white/80">音高</span>
           </div>
           <ScrollingVisualizer
             data={Array.from(safeSpectrumData)}
-            height={96}
+            height={64}
             renderType="spectrumWithPitch"
             minValue={-100}
             maxValue={0}
             maxFreq={2000}
-            backgroundColor="#1a1a1a"
-            color="#60A5FA"
+            backgroundColor="transparent"
+            color="rgba(96, 165, 250, 0.8)"
             dominantFreq={trackDominantFrequency(safeSpectrumData)}
             smoothingFactor={0.15}
             threshold={-60}
@@ -112,19 +106,43 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
         </div>
 
         {/* 总能量 */}
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden h-24">
-          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-            <Activity className="w-3 h-3" />
-            <span>总能量</span>
+        <div className="relative bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl overflow-hidden h-16 shadow-lg">
+          <div className="absolute top-1.5 left-2 flex items-center gap-1 z-10">
+            <span className="text-xs font-medium text-white/80">总能量</span>
+            <span className="text-[10px] text-white/50 ml-1">
+              {calculateTotalEnergy(safeSpectrumData).toFixed(1)} dB
+            </span>
           </div>
           <ScrollingVisualizer
             data={[calculateTotalEnergy(safeSpectrumData)]}
-            height={96}
-            color="#34D399"
+            height={64}
+            color="rgba(52, 211, 153, 0.8)"
             renderType="line"
             minValue={-80}
             maxValue={-20}
-            backgroundColor="#1a1a1a"
+            backgroundColor="transparent"
+            smoothingFactor={0.1}
+            displayUnit="dB"
+            isEnergy={true}
+          />
+        </div>
+
+        {/* Loudness */}
+        <div className="relative bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl overflow-hidden h-16 shadow-lg">
+          <div className="absolute top-1.5 left-2 flex items-center gap-1 z-10">
+            <span className="text-xs font-medium text-white/80">Loudness</span>
+            <span className="text-[10px] text-white/50 ml-1">
+              {loudnessData.toFixed(1)} dB
+            </span>
+          </div>
+          <ScrollingVisualizer
+            data={[loudnessData]}
+            height={64}
+            color="rgba(52, 211, 153, 0.8)"
+            renderType="line"
+            minValue={-60}
+            maxValue={0}
+            backgroundColor="transparent"
             smoothingFactor={0.1}
             displayUnit="dB"
             isEnergy={true}
