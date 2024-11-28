@@ -1,15 +1,27 @@
-import React, { useState, useCallback } from 'react';
-import { Brain, Activity } from 'lucide-react';
-import { AudioVisualizer } from './components/AudioVisualizer';
-import { NeuralNetworkViz } from './components/NeuralNetworkViz';
+import React, { useState } from 'react';
+import { Layout, Card, Space, ConfigProvider, theme } from 'antd';
 import { useAudioCapture } from './hooks/useAudioCapture';
-import { AnimatedMicrophone } from './components/AnimatedMicrophone';
 import { AudioFeatures } from './components/AudioFeatures';
+import { NeuralNetworkViz } from './components/NeuralNetworkViz';
 import { CoughVAD } from './components/CoughVAD';
 import { CoughVisualization } from './components/CoughVisualization';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { ScrollingVisualizer } from './components/ScrollingVisualizer';
+import { AnimatedMicrophone } from './components/AnimatedMicrophone';
+import { SpectrumVisualizer } from './components/SpectrumVisualizer';
 import { AudioEvent } from './components/CoughVAD';
+
+const { Content } = Layout;
+
+// antd 主题配置
+const darkTheme = {
+  algorithm: theme.darkAlgorithm,
+  token: {
+    colorPrimary: '#60A5FA',
+    colorBgContainer: '#0A0F1A',
+    colorBgElevated: '#0A0F1A',
+    borderRadius: 8,
+  },
+};
 
 function App() {
   const [features, setFeatures] = useState<number[]>([]);
@@ -26,17 +38,13 @@ function App() {
 
   const {
     audioData,
-    spectrumData,
-    mfccData,
-    pitchData,
-    loudnessData,
+    analyser,
+    audioContext,
     isCapturing,
-    error,
-    vadStatus,
-    startAudio
+    startCapture,
+    stopCapture
   } = useAudioCapture();
 
-  // 更新事件置信度
   const updateEventConfidence = (event: AudioEvent) => {
     setEventConfidences(prev =>
       prev.map(ec =>
@@ -47,107 +55,79 @@ function App() {
     );
   };
 
-  // 点击处理函数
-  const handleStartAudio = useCallback(async () => {
-    try {
-      await startAudio();
-    } catch (err) {
-      console.error('启动音频失败:', err);
-    }
-  }, [startAudio]);
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
-      {error && (
-        <div
-          className="fixed top-[env(safe-area-inset-top)] left-0 right-0 bg-red-500 text-white p-4 text-center z-50 cursor-pointer"
-          onClick={handleStartAudio}
-        >
-          <p className="text-lg font-semibold">{error}</p>
-          <p className="text-sm mt-1">点击此处或页面任意位置以启动音频</p>
-        </div>
-      )}
+    <ConfigProvider theme={darkTheme}>
+      <Layout className="min-h-screen" style={{ background: '#0A0F1A' }}>
+        <Content className="p-2">
+          <Space direction="vertical" size={12} className="w-full">
+            {/* 麦克风状态和音频特征 */}
+            <Card bordered={false} bodyStyle={{ padding: '8px', background: 'transparent' }}>
+              <div className="flex flex-col gap-4">
+                {/* 麦克风和频谱图 */}
+                <div className="flex items-center gap-4 h-12">
+                  <div
+                    className="flex-shrink-0 cursor-pointer"
+                    onClick={isCapturing ? stopCapture : startCapture}
+                    style={{ width: '48px', height: '48px' }}
+                  >
+                    <AnimatedMicrophone isActive={isCapturing} />
+                  </div>
+                  <div className="flex-grow h-full">
+                    <SpectrumVisualizer data={audioData} height={48} />
+                  </div>
+                </div>
 
-      {!isCapturing && !error && (
-        <div
-          className="fixed top-[env(safe-area-inset-top)] left-0 right-0 bg-blue-500 text-white p-4 text-center z-50 cursor-pointer"
-          onClick={handleStartAudio}
-        >
-          <p className="text-lg font-semibold">点击以启动音频</p>
-          <p className="text-sm mt-1">需要麦克风权限</p>
-        </div>
-      )}
+                {/* 音频特征 */}
+                <div className="flex-grow">
+                  <AudioFeatures
+                    audioData={audioData}
+                    fftSize={analyser?.fftSize || 2048}
+                    sampleRate={audioContext?.sampleRate || 48000}
+                  />
+                </div>
+              </div>
+            </Card>
 
-      <div className="max-w-[2400px] mx-auto p-4 pb-[180px] pt-[env(safe-area-inset-top)]">
-        <div className="bg-gray-800 rounded-lg p-6 mb-4">
-          <div className="flex items-center gap-6 mb-4">
-            <div className="flex-shrink-0">
-              <AnimatedMicrophone isActive={isCapturing} />
-            </div>
-            <div className="h-16 flex-1 overflow-hidden">
-              {spectrumData && (
-                <ScrollingVisualizer
-                  data={Array.from(spectrumData)}
-                  height={64}
-                  renderType="spectrum"
-                  minValue={-100}
-                  maxValue={0}
-                  maxFreq={8000}
-                  useColormap={true}
-                  highlightPeak={true}
-                  backgroundColor="transparent"
-                  color="#60A5FA"
-                  clearBeforeDraw={true}
+            {/* 神经网络可视化 */}
+            <Card bordered={false} bodyStyle={{ padding: '8px', background: 'transparent' }}>
+              <NeuralNetworkViz
+                isProcessing={isProcessing}
+                mfccData={features}
+              />
+            </Card>
+
+            {/* 分类结果可视化 */}
+            <Card bordered={false} bodyStyle={{ padding: '8px', background: 'transparent' }}>
+              <ErrorBoundary>
+                <CoughVisualization
+                  features={features}
+                  isProcessing={isProcessing}
+                  currentEvent={currentEvent}
+                  eventConfidences={eventConfidences}
                 />
-              )}
-            </div>
-          </div>
+              </ErrorBoundary>
+            </Card>
 
-          <AudioFeatures
-            waveformData={audioData ? Array.from(audioData) : []}
-            spectrumData={spectrumData}
-            mfccData={mfccData || []}
-            pitchData={pitchData || 0}
-            loudnessData={loudnessData || 0}
-            vadStatus={vadStatus}
-          />
-        </div>
-
-        <div className="w-full max-w-[2400px] mx-auto mb-4">
-          <NeuralNetworkViz
-            isProcessing={isProcessing}
-            mfccData={mfccData || []}
-          />
-        </div>
-
-        {audioData && (
-          <CoughVAD
-            audioData={audioData}
-            onVADResult={(event) => {
-              console.log('Audio event detected:', event);
-              setCurrentEvent(event);
-              updateEventConfidence(event);
-              setIsProcessing(false);
-            }}
-            onFeatures={(features) => {
-              setFeatures(features);
-              setIsProcessing(true);
-            }}
-          />
-        )}
-
-        <ErrorBoundary>
-          <div className="visualization-container">
-            <CoughVisualization
-              features={features}
-              isProcessing={isProcessing}
-              currentEvent={currentEvent}
-              eventConfidences={eventConfidences}
-            />
-          </div>
-        </ErrorBoundary>
-      </div>
-    </div>
+            {/* 音频事件检测 */}
+            {audioData && (
+              <CoughVAD
+                audioData={audioData}
+                onVADResult={(event) => {
+                  console.log('Audio event detected:', event);
+                  setCurrentEvent(event);
+                  updateEventConfidence(event);
+                  setIsProcessing(false);
+                }}
+                onFeatures={(features) => {
+                  setFeatures(features);
+                  setIsProcessing(true);
+                }}
+              />
+            )}
+          </Space>
+        </Content>
+      </Layout>
+    </ConfigProvider>
   );
 }
 
