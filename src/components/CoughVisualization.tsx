@@ -303,8 +303,8 @@ export const CoughVisualization: React.FC<CoughVisualizationProps> = ({
   };
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', minHeight: '300px' }}>
-      <Stage width={dimensions.width} height={dimensions.height}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'absolute', top: '90px' }}>
+      <Stage width={dimensions.width} height={dimensions.height} style={{ display: 'block', position: 'absolute', top: 0 }}>
         <Layer>
           {renderEventZones()}
           {renderTrail()}

@@ -147,11 +147,11 @@ export const NeuralNetworkViz: React.FC<NeuralNetworkVizProps> = ({
   }, [networkStructure]);
 
   return (
-    <div className="w-full h-[180px] bg-gray-800/50 rounded-lg p-3 backdrop-blur-sm">
+    <div className="w-full h-[100px] bg-gray-800/50 rounded-lg p-1 backdrop-blur-sm">
       <svg
         width="100%"
         height="100%"
-        viewBox="0 0 200 60"
+        viewBox="0 0 200 45"
         preserveAspectRatio="xMidYMid meet"
         className="drop-shadow-xl"
       >

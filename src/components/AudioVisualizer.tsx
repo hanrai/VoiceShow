@@ -1,11 +1,10 @@
 import React, { useEffect, useRef } from 'react';
+import * as echarts from 'echarts';
 
 interface AudioVisualizerProps {
   data: number[] | Float32Array;
   type?: 'waveform' | 'spectrum';
 }
-
-declare const echarts: any;
 
 export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   data,

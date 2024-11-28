@@ -18,6 +18,7 @@ interface AudioState {
 	vadStatus: boolean;
 	features: AudioFeatures | null;
 	isCapturing: boolean;
+	error: string | null;
 }
 
 export const useAudioCapture = () => {
@@ -30,6 +31,7 @@ export const useAudioCapture = () => {
 		vadStatus: false,
 		features: null,
 		isCapturing: false,
+		error: null,
 	});
 
 	const audioContextRef = useRef<AudioContext>();
@@ -42,18 +44,60 @@ export const useAudioCapture = () => {
 	const frequencyArrayRef = useRef<Float32Array>();
 	const isMountedRef = useRef(true);
 
+	// 检查是否是安全上下文
+	const checkSecureContext = () => {
+		if (!window.isSecureContext) {
+			throw new Error(
+				'需要HTTPS连接才能访问麦克风。请使用HTTPS或localhost访问。'
+			);
+		}
+		if (!navigator?.mediaDevices) {
+			throw new Error(
+				'您的浏览器不支持音频设备访问，请确保使用现代浏览器并授予麦克风权限。'
+			);
+		}
+	};
+
 	// 检查音频设备
 	const checkAudioDevices = async () => {
 		try {
+			// 首先检查mediaDevices API是否可用
+			if (!navigator?.mediaDevices?.getUserMedia) {
+				throw new Error('您的浏览器不支持音频设备访问');
+			}
+
+			// 尝试直接获取音频权限
+			await navigator.mediaDevices
+				.getUserMedia({ audio: true })
+				.then(stream => {
+					// 成功获取后立即停止流
+					stream.getTracks().forEach(track => track.stop());
+				})
+				.catch(err => {
+					if (err.name === 'NotAllowedError') {
+						throw new Error('请允许访问麦克风以使用此功能');
+					} else if (err.name === 'NotFoundError') {
+						throw new Error('未检测到麦克风设备');
+					} else {
+						throw new Error(`麦克风访问错误: ${err.message}`);
+					}
+				});
+
+			// 如果成功获取了权限，再枚举设备
 			const devices = await navigator.mediaDevices.enumerateDevices();
 			const audioInputs = devices.filter(
 				device => device.kind === 'audioinput'
 			);
 			console.log('Available audio inputs:', audioInputs);
-			return audioInputs.length > 0;
+
+			if (audioInputs.length === 0) {
+				throw new Error('未检测到麦克风设备');
+			}
+
+			return true;
 		} catch (error) {
 			console.error('Error checking audio devices:', error);
-			return false;
+			throw error;
 		}
 	};
 
@@ -115,11 +159,14 @@ export const useAudioCapture = () => {
 
 	const startCapture = useCallback(async () => {
 		try {
+			// 重置错误状态
+			setAudioState(prev => ({ ...prev, error: null }));
+
+			// 检查安全上下文
+			checkSecureContext();
+
 			// 检查音频设备
-			const hasAudioInputs = await checkAudioDevices();
-			if (!hasAudioInputs) {
-				throw new Error('No audio input devices found');
-			}
+			await checkAudioDevices();
 
 			// 停止现有的音频上下文和流
 			if (audioContextRef.current) {
@@ -201,10 +248,17 @@ export const useAudioCapture = () => {
 				},
 			});
 
-			setAudioState(prev => ({ ...prev, isCapturing: true }));
+			setAudioState(prev => ({ ...prev, isCapturing: true, error: null }));
 			updateData();
 		} catch (error) {
 			console.error('Error starting audio capture:', error);
+			const errorMessage =
+				error instanceof Error ? error.message : '启动音频捕获时发生未知错误';
+			setAudioState(prev => ({
+				...prev,
+				isCapturing: false,
+				error: errorMessage,
+			}));
 		}
 	}, [updateData]);
 
@@ -235,6 +289,7 @@ export const useAudioCapture = () => {
 		vadStatus: audioState.vadStatus,
 		features: audioState.features,
 		isCapturing: audioState.isCapturing,
+		error: audioState.error,
 		startCapture,
 	};
 };

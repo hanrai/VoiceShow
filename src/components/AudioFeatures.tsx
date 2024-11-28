@@ -68,16 +68,16 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
 
   return (
     <div className="w-full overflow-x-hidden">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2 px-2 max-w-[2000px] mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1 mt-1 px-1 max-w-[2000px] mx-auto">
         {/* MFCC图 */}
         <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
+          <div className="absolute top-0.5 left-0.5 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1 py-0.5 rounded">
             <Activity className="w-3 h-3" />
             <span>MFCC</span>
           </div>
           <ScrollingVisualizer
             data={mfccData}
-            height={120}
+            height={80}
             renderType="heatmap"
             minValue={-0.2}
             maxValue={0.2}
@@ -87,7 +87,7 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
 
         {/* 音高图 */}
         <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
+          <div className="absolute top-0.5 left-0.5 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1 py-0.5 rounded">
             <Activity className="w-3 h-3" />
             <span>音高</span>
           </div>
