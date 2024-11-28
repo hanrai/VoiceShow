@@ -15,7 +15,7 @@ export interface AudioEvent {
 }
 
 interface CoughVADProps {
-  audioData: Float32Array;
+  audioData: Uint8Array;
   onVADResult: (event: AudioEvent) => void;
   onFeatures?: (features: number[]) => void;
 }
@@ -23,41 +23,50 @@ interface CoughVADProps {
 // 事件类型的特征范围定义
 const EVENT_RANGES = {
   cough: {
-    rms: { min: 0.01, max: 1.0 },        // 降低最小 RMS 阈值
-    spectralCentroid: { min: 500, max: 4000 },  // 扩大频谱范围
-    zcr: { min: 100, max: 3000 },        // 扩大过零率范围
-    loudness: { min: -60, max: -10 }     // 扩大响度范围
+    rms: { min: 0.01, max: 1.0 },
+    spectralCentroid: { min: 500, max: 4000 },
+    zcr: { min: 100, max: 3000 },
+    loudness: { min: 0, max: 255 }
   },
   speech: {
-    rms: { min: 0.005, max: 0.8 },       // 降低最小 RMS 阈值
+    rms: { min: 0.005, max: 0.8 },
     spectralCentroid: { min: 200, max: 3000 },
     zcr: { min: 50, max: 2000 },
-    loudness: { min: -70, max: -20 }
+    loudness: { min: 0, max: 200 }
   },
   laugh: {
     rms: { min: 0.008, max: 0.9 },
     spectralCentroid: { min: 300, max: 3500 },
     zcr: { min: 80, max: 2500 },
-    loudness: { min: -65, max: -15 }
+    loudness: { min: 0, max: 220 }
   },
   sneeze: {
     rms: { min: 0.015, max: 1.0 },
     spectralCentroid: { min: 600, max: 4500 },
     zcr: { min: 120, max: 3500 },
-    loudness: { min: -55, max: -5 }
+    loudness: { min: 0, max: 255 }
   },
   breath: {
     rms: { min: 0.003, max: 0.5 },
     spectralCentroid: { min: 100, max: 2000 },
     zcr: { min: 30, max: 1500 },
-    loudness: { min: -80, max: -30 }
+    loudness: { min: 0, max: 150 }
   },
   noise: {
     rms: { min: 0.001, max: 0.3 },
     spectralCentroid: { min: 0, max: 5000 },
     zcr: { min: 0, max: 4000 },
-    loudness: { min: -90, max: -40 }
+    loudness: { min: 0, max: 100 }
   }
+};
+
+// 将 Uint8Array 转换为 Float32Array，范围从 [0, 255] 转换到 [-1, 1]
+const convertToFloat32 = (uint8Array: Uint8Array): Float32Array => {
+  const float32Array = new Float32Array(uint8Array.length);
+  for (let i = 0; i < uint8Array.length; i++) {
+    float32Array[i] = (uint8Array[i] - 128) / 128;
+  }
+  return float32Array;
 };
 
 export const CoughVAD: React.FC<CoughVADProps> = ({
@@ -84,11 +93,11 @@ export const CoughVAD: React.FC<CoughVADProps> = ({
       1 - Math.abs((features.zcr - (ranges.zcr.max + ranges.zcr.min) / 2) /
         (ranges.zcr.max - ranges.zcr.min)) : 0;
 
-    // 响度评分（使用对数刻度）
-    const normalizedLoudness = features.loudness.total - ranges.loudness.min;
+    // 响度评分
+    const normalizedLoudness = features.loudness.total;
     const loudnessRange = ranges.loudness.max - ranges.loudness.min;
-    const loudnessScore = (normalizedLoudness >= 0 && normalizedLoudness <= loudnessRange) ?
-      1 - Math.abs(normalizedLoudness - loudnessRange / 2) / (loudnessRange / 2) : 0;
+    const loudnessScore = (normalizedLoudness >= ranges.loudness.min && normalizedLoudness <= ranges.loudness.max) ?
+      1 - Math.abs(normalizedLoudness - (ranges.loudness.max + ranges.loudness.min) / 2) / (loudnessRange / 2) : 0;
 
     // MFCC方差评分（使用对数刻度）
     const mfccVariance = features.mfcc.reduce((acc, val) => acc + val * val, 0) / features.mfcc.length;
@@ -98,11 +107,11 @@ export const CoughVAD: React.FC<CoughVADProps> = ({
     let score = 0;
     if (eventType === 'cough') {
       score = (
-        rmsScore * 0.35 +      // 增加 RMS 权重
-        centroidScore * 0.25 + // 增加频谱质心权重
-        zcrScore * 0.15 +      // 降低过零率权重
-        loudnessScore * 0.15 + // 降低响度权重
-        mfccScore * 0.1        // 保持 MFCC 权重
+        rmsScore * 0.35 +
+        centroidScore * 0.25 +
+        zcrScore * 0.15 +
+        loudnessScore * 0.15 +
+        mfccScore * 0.1
       );
     } else if (eventType === 'speech') {
       score = (
@@ -154,11 +163,14 @@ export const CoughVAD: React.FC<CoughVADProps> = ({
 
     try {
       // 检查是否有有效的音频数据
-      const hasValidData = audioData.some(value => Math.abs(value) > 0.001);
+      const hasValidData = audioData.some(value => value !== 128);
 
       if (!hasValidData) {
         return;
       }
+
+      // 转换为 Float32Array
+      const float32Data = convertToFloat32(audioData);
 
       // 使用 Meyda 提取特征
       const features = Meyda.extract([
@@ -167,7 +179,7 @@ export const CoughVAD: React.FC<CoughVADProps> = ({
         'zcr',
         'mfcc',
         'loudness'
-      ], audioData) as AudioEvent['features'];
+      ], float32Data) as AudioEvent['features'];
 
       // 计算每种事件类型的置信度
       const confidences = Object.keys(EVENT_RANGES).map(type => ({
@@ -205,10 +217,10 @@ export const CoughVAD: React.FC<CoughVADProps> = ({
       if (onFeatures) {
         onFeatures([
           features.rms,
-          features.spectralCentroid / 5000, // 归一化频谱质心
-          features.zcr / 4000,              // 归一化过零率
-          (features.loudness.total + 100) / 100, // 归一化响度
-          ...features.mfcc.map(v => (v + 20) / 40) // 归一化 MFCC
+          features.spectralCentroid / 5000,
+          features.zcr / 4000,
+          features.loudness.total / 255,
+          ...features.mfcc.map(v => (v + 20) / 40)
         ]);
       }
     } catch (error) {

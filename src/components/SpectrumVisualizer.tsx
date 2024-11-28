@@ -3,7 +3,10 @@ import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
 
 interface SpectrumVisualizerProps {
-  data: Float32Array | null;
+  data: {
+    frequency: Uint8Array;
+    timeDomain: Uint8Array;
+  } | null;
   height?: number;
 }
 
@@ -32,8 +35,8 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
     yAxis: {
       type: 'value',
       show: false,
-      min: -100,
-      max: 0,
+      min: 0,
+      max: 255,
       scale: true
     },
     series: [{
@@ -87,26 +90,26 @@ export const SpectrumVisualizer: React.FC<SpectrumVisualizerProps> = ({
 
   // 更新数据
   useEffect(() => {
-    if (!data || !chartInstanceRef.current) return;
+    if (!data?.frequency || !chartInstanceRef.current) return;
 
     // 对数据进行降采样和平均
-    const barCount = 48; // 增加柱状图数量以获得更好的视觉效果
-    const samplingRate = Math.floor(data.length / barCount);
+    const barCount = 48;
+    const samplingRate = Math.floor(data.frequency.length / barCount);
     const processedData = new Array(barCount).fill(0).map((_, i) => {
       let sum = 0;
       let count = 0;
       for (let j = 0; j < samplingRate; j++) {
         const index = i * samplingRate + j;
-        if (index < data.length) {
-          sum += data[index];
+        if (index < data.frequency.length) {
+          sum += data.frequency[index];
           count++;
         }
       }
-      const value = Math.max(-100, Math.min(0, sum / count));
+      const value = sum / count;
       return {
         value,
         itemStyle: {
-          opacity: Math.pow((value + 100) / 100, 1.5) // 非线性映射使低能量更明显
+          opacity: Math.pow(value / 255, 1.5)
         }
       };
     });

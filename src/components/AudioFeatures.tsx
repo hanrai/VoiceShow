@@ -3,7 +3,10 @@ import { useAudioFeatures } from '../hooks/useAudioFeatures';
 import FeatureVisualizer from './visualizers/FeatureVisualizer';
 
 interface AudioFeaturesProps {
-  audioData: Float32Array | null;
+  audioData: {
+    frequency: Uint8Array;
+    timeDomain: Uint8Array;
+  } | null;
   fftSize: number;
   sampleRate: number;
 }
@@ -22,17 +25,17 @@ const visualizerConfigs = [
     }
   },
   {
-    id: 'pitch',
-    title: '音高',
+    id: 'spectrum',
+    title: '频谱',
     gradientColors: { from: 'blue-900', to: 'blue-800' },
     visualizerProps: {
       renderType: 'spectrumWithPitch' as const,
-      minValue: -100,
-      maxValue: 0,
+      minValue: 0,
+      maxValue: 255,
       maxFreq: 2000,
       color: 'rgba(96, 165, 250, 0.8)',
       smoothingFactor: 0.15,
-      threshold: -60,
+      threshold: 128,
       clearBeforeDraw: true,
       height: 48,
       backgroundColor: '#0A0F1A'
@@ -40,32 +43,34 @@ const visualizerConfigs = [
   },
   {
     id: 'energy',
-    title: '总能量',
+    title: '能量',
     gradientColors: { from: 'gray-900', to: 'gray-800' },
     visualizerProps: {
       renderType: 'line' as const,
       color: 'rgba(52, 211, 153, 0.8)',
-      minValue: -80,
-      maxValue: -20,
+      minValue: 0,
+      maxValue: 255,
       smoothingFactor: 0.1,
-      displayUnit: 'dB',
+      displayUnit: '',
       isEnergy: true,
       height: 48,
       backgroundColor: '#0A0F1A'
     }
   },
   {
-    id: 'loudness',
-    title: 'Loudness',
+    id: 'spectralFeatures',
+    title: '频谱特征',
     gradientColors: { from: 'gray-900', to: 'gray-800' },
     visualizerProps: {
-      renderType: 'line' as const,
-      color: 'rgba(52, 211, 153, 0.8)',
-      minValue: -60,
-      maxValue: 0,
+      renderType: 'multiLine' as const,
+      lines: [
+        { name: '质心', color: 'rgba(52, 211, 153, 0.8)' },
+        { name: '滚降', color: 'rgba(96, 165, 250, 0.8)' },
+        { name: '过零率', color: 'rgba(249, 115, 22, 0.8)' }
+      ],
+      minValue: 0,
+      maxValue: 1,
       smoothingFactor: 0.1,
-      displayUnit: 'dB',
-      isEnergy: true,
       height: 48,
       backgroundColor: '#0A0F1A'
     }
@@ -88,18 +93,17 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
           data={
             config.id === 'mfcc'
               ? features.mfccData
-              : config.id === 'pitch'
-                ? features.spectrumData
+              : config.id === 'spectrum'
+                ? Array.from(audioData?.frequency || []).map(v => v / 255)
                 : config.id === 'energy'
                   ? [features.totalEnergy]
-                  : [features.loudness]
-          }
-          value={
-            config.id === 'energy'
-              ? `${features.totalEnergy.toFixed(1)} dB`
-              : config.id === 'loudness'
-                ? `${features.loudness.toFixed(1)} dB`
-                : undefined
+                  : config.id === 'spectralFeatures'
+                    ? [
+                      features.spectralCentroid,
+                      features.spectralRolloff,
+                      features.zeroCrossingRate
+                    ]
+                    : []
           }
         />
       ))}

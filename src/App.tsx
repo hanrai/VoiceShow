@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Card, Space, ConfigProvider, theme } from 'antd';
+import { Layout, Card, ConfigProvider, theme } from 'antd';
 import { useAudioCapture } from './hooks/useAudioCapture';
 import { AudioFeatures } from './components/AudioFeatures';
 import { NeuralNetworkViz } from './components/NeuralNetworkViz';
@@ -57,12 +57,12 @@ function App() {
 
   return (
     <ConfigProvider theme={darkTheme}>
-      <Layout className="min-h-screen" style={{ background: '#0A0F1A' }}>
-        <Content className="p-2">
-          <Space direction="vertical" size={12} className="w-full">
+      <Layout className="min-h-screen max-h-screen flex flex-col overflow-hidden" style={{ background: '#0A0F1A' }}>
+        <Content className="flex-1 p-2 overflow-hidden">
+          <div className="h-full flex flex-col gap-2">
             {/* 麦克风状态和音频特征 */}
-            <Card bordered={false} styles={{ body: { padding: '8px', background: 'transparent' } }}>
-              <div className="flex flex-col gap-4">
+            <Card bordered={false} styles={{ body: { padding: '8px', background: 'transparent' } }} className="flex-none">
+              <div className="flex flex-col gap-2">
                 {/* 麦克风和频谱图 */}
                 <div className="flex items-center gap-4 h-12">
                   <div
@@ -78,7 +78,7 @@ function App() {
                 </div>
 
                 {/* 音频特征 */}
-                <div className="flex-grow">
+                <div className="flex-none">
                   <AudioFeatures
                     audioData={audioData}
                     fftSize={analyser?.fftSize || 2048}
@@ -89,15 +89,17 @@ function App() {
             </Card>
 
             {/* 神经网络可视化 */}
-            <Card bordered={false} styles={{ body: { padding: '8px', background: 'transparent' } }}>
-              <NeuralNetworkViz
-                isProcessing={isProcessing}
-                mfccData={features}
-              />
+            <Card bordered={false} styles={{ body: { padding: '8px', background: 'transparent' } }} className="flex-1 min-h-0">
+              <div className="h-full">
+                <NeuralNetworkViz
+                  isProcessing={isProcessing}
+                  mfccData={features}
+                />
+              </div>
             </Card>
 
             {/* 分类结果可视化 */}
-            <Card bordered={false} styles={{ body: { padding: '8px', background: 'transparent' } }}>
+            <Card bordered={false} styles={{ body: { padding: '8px', background: 'transparent' } }} className="flex-none">
               <ErrorBoundary>
                 <CoughVisualization
                   features={features}
@@ -107,24 +109,24 @@ function App() {
                 />
               </ErrorBoundary>
             </Card>
+          </div>
 
-            {/* 音频事件检测 */}
-            {audioData && (
-              <CoughVAD
-                audioData={audioData}
-                onVADResult={(event) => {
-                  console.log('Audio event detected:', event);
-                  setCurrentEvent(event);
-                  updateEventConfidence(event);
-                  setIsProcessing(false);
-                }}
-                onFeatures={(features) => {
-                  setFeatures(features);
-                  setIsProcessing(true);
-                }}
-              />
-            )}
-          </Space>
+          {/* 音频事件检测 */}
+          {audioData && (
+            <CoughVAD
+              audioData={audioData.timeDomain}
+              onVADResult={(event) => {
+                console.log('Audio event detected:', event);
+                setCurrentEvent(event);
+                updateEventConfidence(event);
+                setIsProcessing(false);
+              }}
+              onFeatures={(features) => {
+                setFeatures(features);
+                setIsProcessing(true);
+              }}
+            />
+          )}
         </Content>
       </Layout>
     </ConfigProvider>
