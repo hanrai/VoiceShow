@@ -11,14 +11,13 @@ interface AudioCaptureState {
 }
 
 // 数据验证工具函数
-const getArrayStats = (arr: Uint8Array) => {
+const getArrayStats = (arr: Uint8Array, isFrequencyData: boolean) => {
 	const max = Math.max(...arr);
 	const min = Math.min(...arr);
 	const mean = arr.reduce((sum, val) => sum + val, 0) / arr.length;
-	const nonZeroCount = arr.reduce(
-		(count, val) => count + (val !== 0 ? 1 : 0),
-		0
-	);
+	const nonZeroCount = isFrequencyData
+		? arr.reduce((count, val) => count + (val > 0 ? 1 : 0), 0)
+		: arr.reduce((count, val) => count + (val !== 128 ? 1 : 0), 0);
 	return { max, min, mean, nonZeroCount, total: arr.length };
 };
 
@@ -30,22 +29,27 @@ const validateAudioData = (frequencyData: Uint8Array, timeData: Uint8Array) => {
 	}
 
 	// 获取统计信息
-	const freqStats = getArrayStats(frequencyData);
-	const timeStats = getArrayStats(timeData);
+	const freqStats = getArrayStats(frequencyData, true);
+	const timeStats = getArrayStats(timeData, false);
 
 	// 记录当前数据状态
 	console.log('Audio data stats:', {
 		frequency: freqStats,
 		timeDomain: timeStats,
-		hasSignal: timeStats.nonZeroCount > 0,
+		hasSignal: timeStats.nonZeroCount > 0 || freqStats.nonZeroCount > 0,
 	});
 
-	return timeStats.nonZeroCount > 0; // 只要有非零值就认为有信号
+	// 检查是否有有效信号
+	const hasFrequencySignal = freqStats.max > 10; // 频域数据要有足够的强度
+	const hasTimeSignal = timeStats.nonZeroCount > 0; // 时域数据要有变化
+
+	return hasFrequencySignal || hasTimeSignal;
 };
 
 export function useAudioCapture() {
 	const [isCapturing, setIsCapturing] = useState(false);
 	const analyserRef = useRef<AnalyserNode | null>(null);
+	const gainNodeRef = useRef<GainNode | null>(null);
 	const audioContextRef = useRef<AudioContext | null>(null);
 	const streamRef = useRef<MediaStream>();
 	const sourceRef = useRef<MediaStreamAudioSourceNode>();
@@ -54,6 +58,18 @@ export function useAudioCapture() {
 	const frameRef = useRef<number>();
 	const lastUpdateRef = useRef<number>(0);
 	const updateCountRef = useRef(0);
+	const silentAudioRef = useRef<AudioBufferSourceNode | null>(null);
+
+	// 创建静音音频源以保持音频上下文活跃
+	const createSilentAudio = useCallback((context: AudioContext) => {
+		const buffer = context.createBuffer(1, 1024, context.sampleRate);
+		const source = context.createBufferSource();
+		source.buffer = buffer;
+		source.loop = true;
+		source.connect(context.destination);
+		source.start();
+		return source;
+	}, []);
 
 	// 清理音频资源
 	const cleanupAudio = useCallback(() => {
@@ -64,9 +80,20 @@ export function useAudioCapture() {
 			frameRef.current = undefined;
 		}
 
+		if (silentAudioRef.current) {
+			silentAudioRef.current.stop();
+			silentAudioRef.current.disconnect();
+			silentAudioRef.current = null;
+		}
+
 		if (sourceRef.current) {
 			sourceRef.current.disconnect();
 			sourceRef.current = undefined;
+		}
+
+		if (gainNodeRef.current) {
+			gainNodeRef.current.disconnect();
+			gainNodeRef.current = null;
 		}
 
 		if (streamRef.current) {
@@ -138,6 +165,8 @@ export function useAudioCapture() {
 						frequencyBinCount: analyser.frequencyBinCount,
 						minDecibels: analyser.minDecibels,
 						maxDecibels: analyser.maxDecibels,
+						smoothingTimeConstant: analyser.smoothingTimeConstant,
+						gainValue: gainNodeRef.current?.gain.value,
 					},
 				});
 			}
@@ -177,9 +206,9 @@ export function useAudioCapture() {
 			console.log('Requesting microphone access...');
 			const stream = await navigator.mediaDevices.getUserMedia({
 				audio: {
-					echoCancellation: true,
-					noiseSuppression: true,
-					autoGainControl: true,
+					echoCancellation: false,
+					noiseSuppression: false,
+					autoGainControl: false,
 					channelCount: 1,
 					sampleRate: 44100,
 				},
@@ -214,20 +243,33 @@ export function useAudioCapture() {
 
 			// 3. 创建和连接音频节点
 			const source = audioContext.createMediaStreamSource(stream);
+			const gainNode = audioContext.createGain();
 			const analyser = audioContext.createAnalyser();
+
+			// 设置增益值（提高音量）
+			gainNode.gain.value = 2.0;
 
 			// 调整分析器参数
 			analyser.fftSize = 2048;
-			analyser.minDecibels = -90;
+			analyser.minDecibels = -70;
 			analyser.maxDecibels = -10;
-			analyser.smoothingTimeConstant = 0.85;
+			analyser.smoothingTimeConstant = 0.4;
 
-			source.connect(analyser);
+			// 连接节点链
+			source.connect(gainNode);
+			gainNode.connect(analyser);
+			gainNode.connect(audioContext.destination); // 连接到输出以激活处理
+
+			// 创建静音音频源以保持上下文活跃
+			silentAudioRef.current = createSilentAudio(audioContext);
+
 			console.log('Audio nodes connected:', {
 				fftSize: analyser.fftSize,
 				frequencyBinCount: analyser.frequencyBinCount,
 				minDecibels: analyser.minDecibels,
 				maxDecibels: analyser.maxDecibels,
+				smoothingTimeConstant: analyser.smoothingTimeConstant,
+				gainValue: gainNode.gain.value,
 			});
 
 			// 4. 初始化数据缓冲区
@@ -239,8 +281,8 @@ export function useAudioCapture() {
 			analyser.getByteTimeDomainData(timeData);
 
 			const initialStats = {
-				frequency: getArrayStats(frequencyData),
-				timeDomain: getArrayStats(timeData),
+				frequency: getArrayStats(frequencyData, true),
+				timeDomain: getArrayStats(timeData, false),
 			};
 
 			console.log('Initial audio data:', initialStats);
@@ -248,6 +290,7 @@ export function useAudioCapture() {
 			// 6. 保存引用
 			streamRef.current = stream;
 			sourceRef.current = source;
+			gainNodeRef.current = gainNode;
 			analyserRef.current = analyser;
 			frequencyDataRef.current = frequencyData;
 			timeDataRef.current = timeData;
@@ -259,7 +302,7 @@ export function useAudioCapture() {
 			cleanupAudio();
 			return false;
 		}
-	}, [cleanupAudio]);
+	}, [cleanupAudio, createSilentAudio]);
 
 	// 开始捕获
 	const startCapture = useCallback(async () => {
