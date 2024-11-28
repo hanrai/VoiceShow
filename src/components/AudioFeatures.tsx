@@ -43,9 +43,9 @@ const trackDominantFrequency = (spectrum: Float32Array | null): number | null =>
 export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
   waveformData = [],
   spectrumData,
-  mfccData,
-  pitchData,
-  loudnessData,
+  mfccData = [],
+  pitchData = 0,
+  loudnessData = 0,
   vadStatus
 }) => {
   // 在组件内部，将单个数值转换为数组进行显示
@@ -66,18 +66,22 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
     return validValues.reduce((sum, value) => sum + value, 0) / validValues.length;
   };
 
+  // 确保所有数据都有有效的默认值
+  const safeSpectrumData = spectrumData || new Float32Array();
+  const safeMfccData = mfccData.length > 0 ? mfccData : new Array(13).fill(0);
+
   return (
     <div className="w-full overflow-x-hidden">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2 px-2 max-w-[2000px] mx-auto">
         {/* MFCC图 */}
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+        <div className="relative bg-gray-900 rounded-lg overflow-hidden h-24">
           <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
             <Activity className="w-3 h-3" />
             <span>MFCC</span>
           </div>
           <ScrollingVisualizer
-            data={mfccData}
-            height={120}
+            data={safeMfccData}
+            height={96}
             renderType="heatmap"
             minValue={-0.2}
             maxValue={0.2}
@@ -86,21 +90,21 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
         </div>
 
         {/* 音高图 */}
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+        <div className="relative bg-gray-900 rounded-lg overflow-hidden h-24">
           <div className="absolute top-0.5 left-0.5 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1 py-0.5 rounded">
             <Activity className="w-3 h-3" />
             <span>音高</span>
           </div>
           <ScrollingVisualizer
-            data={Array.from(spectrumData || new Float32Array())}
-            height={120}
+            data={Array.from(safeSpectrumData)}
+            height={96}
             renderType="spectrumWithPitch"
             minValue={-100}
             maxValue={0}
             maxFreq={2000}
             backgroundColor="#1a1a1a"
             color="#60A5FA"
-            dominantFreq={trackDominantFrequency(spectrumData)}
+            dominantFreq={trackDominantFrequency(safeSpectrumData)}
             smoothingFactor={0.15}
             threshold={-60}
             clearBeforeDraw={true}
@@ -108,38 +112,18 @@ export const AudioFeatures: React.FC<AudioFeaturesProps> = ({
         </div>
 
         {/* 总能量 */}
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+        <div className="relative bg-gray-900 rounded-lg overflow-hidden h-24">
           <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
             <Activity className="w-3 h-3" />
             <span>总能量</span>
           </div>
           <ScrollingVisualizer
-            data={[calculateTotalEnergy(spectrumData)]}
-            height={120}
+            data={[calculateTotalEnergy(safeSpectrumData)]}
+            height={96}
             color="#34D399"
             renderType="line"
             minValue={-80}
             maxValue={-20}
-            backgroundColor="#1a1a1a"
-            smoothingFactor={0.1}
-            displayUnit="dB"
-            isEnergy={true}
-          />
-        </div>
-
-        {/* Loudness */}
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
-          <div className="absolute top-1 left-1 flex items-center gap-1 z-10 text-xs text-white/60 bg-black/30 px-1.5 py-0.5 rounded">
-            <Activity className="w-3 h-3" />
-            <span>Loudness</span>
-          </div>
-          <ScrollingVisualizer
-            data={loudnessArray}
-            height={120}
-            renderType="line"
-            minValue={-60}
-            maxValue={0}
-            color="#34D399"
             backgroundColor="#1a1a1a"
             smoothingFactor={0.1}
             displayUnit="dB"

@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Brain, Volume2, Mic, Activity } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Brain, Activity } from 'lucide-react';
 import { AudioVisualizer } from './components/AudioVisualizer';
 import { NeuralNetworkViz } from './components/NeuralNetworkViz';
 import { useAudioCapture } from './hooks/useAudioCapture';
@@ -30,10 +30,10 @@ function App() {
     mfccData,
     pitchData,
     loudnessData,
-    startCapture,
     isCapturing,
+    error,
     vadStatus,
-    error
+    startAudio
   } = useAudioCapture();
 
   // 更新事件置信度
@@ -42,33 +42,47 @@ function App() {
       prev.map(ec =>
         ec.type === event.type
           ? { ...ec, confidence: event.confidence }
-          : { ...ec, confidence: Math.max(0, ec.confidence - 0.1) } // 其他事件的置信度逐渐衰减
+          : { ...ec, confidence: Math.max(0, ec.confidence - 0.1) }
       )
     );
   };
 
-  useEffect(() => {
-    startCapture();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 点击处理函数
+  const handleStartAudio = useCallback(async () => {
+    try {
+      await startAudio();
+    } catch (err) {
+      console.error('启动音频失败:', err);
+    }
+  }, [startAudio]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
       {error && (
-        <div className="fixed top-[env(safe-area-inset-top)] left-0 right-0 bg-red-500 text-white p-2 text-center z-50">
+        <div
+          className="fixed top-[env(safe-area-inset-top)] left-0 right-0 bg-red-500 text-white p-4 text-center z-50 cursor-pointer"
+          onClick={handleStartAudio}
+        >
           <p className="text-lg font-semibold">{error}</p>
-          <button
-            onClick={startCapture}
-            className="mt-1 px-4 py-1 bg-white text-red-500 rounded hover:bg-red-100 transition-colors"
-          >
-            重试
-          </button>
+          <p className="text-sm mt-1">点击此处或页面任意位置以启动音频</p>
         </div>
       )}
+
+      {!isCapturing && !error && (
+        <div
+          className="fixed top-[env(safe-area-inset-top)] left-0 right-0 bg-blue-500 text-white p-4 text-center z-50 cursor-pointer"
+          onClick={handleStartAudio}
+        >
+          <p className="text-lg font-semibold">点击以启动音频</p>
+          <p className="text-sm mt-1">需要麦克风权限</p>
+        </div>
+      )}
+
       <div className="max-w-[2400px] mx-auto p-4 pb-[180px] pt-[env(safe-area-inset-top)]">
         <div className="bg-gray-800 rounded-lg p-6 mb-4">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-6 mb-4">
             <div className="flex-shrink-0">
-              <AnimatedMicrophone />
+              <AnimatedMicrophone isActive={isCapturing} />
             </div>
             <div className="h-16 flex-1 overflow-hidden">
               {spectrumData && (
@@ -88,6 +102,7 @@ function App() {
               )}
             </div>
           </div>
+
           <AudioFeatures
             waveformData={audioData ? Array.from(audioData) : []}
             spectrumData={spectrumData}
@@ -120,18 +135,18 @@ function App() {
             }}
           />
         )}
-      </div>
 
-      <ErrorBoundary>
-        <div className="visualization-container">
-          <CoughVisualization
-            features={features}
-            isProcessing={isProcessing}
-            currentEvent={currentEvent}
-            eventConfidences={eventConfidences}
-          />
-        </div>
-      </ErrorBoundary>
+        <ErrorBoundary>
+          <div className="visualization-container">
+            <CoughVisualization
+              features={features}
+              isProcessing={isProcessing}
+              currentEvent={currentEvent}
+              eventConfidences={eventConfidences}
+            />
+          </div>
+        </ErrorBoundary>
+      </div>
     </div>
   );
 }
