@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface AudioCaptureState {
 	audioData: Float32Array | null;
@@ -8,29 +8,34 @@ interface AudioCaptureState {
 }
 
 export function useAudioCapture() {
-	const [state, setState] = useState<AudioCaptureState>({
-		audioData: null,
-		analyser: null,
-		audioContext: null,
-		isCapturing: false,
-	});
-
-	const animationFrameRef = useRef<number>();
+	const [isCapturing, setIsCapturing] = useState(false);
+	const analyserRef = useRef<AnalyserNode | null>(null);
+	const audioContextRef = useRef<AudioContext | null>(null);
 	const streamRef = useRef<MediaStream>();
+	const dataRef = useRef<Float32Array | null>(null);
+	const frameRef = useRef<number>();
+	const lastUpdateRef = useRef<number>(0);
 
-	useEffect(() => {
-		return () => {
-			if (animationFrameRef.current) {
-				cancelAnimationFrame(animationFrameRef.current);
-			}
-			if (streamRef.current) {
-				streamRef.current.getTracks().forEach(track => track.stop());
-			}
-			state.audioContext?.close();
-		};
+	const updateData = useCallback(() => {
+		const analyser = analyserRef.current;
+		if (!analyser) return;
+
+		const now = performance.now();
+		if (now - lastUpdateRef.current < 33.33) {
+			// 限制30fps
+			frameRef.current = requestAnimationFrame(updateData);
+			return;
+		}
+
+		if (!dataRef.current) {
+			dataRef.current = new Float32Array(analyser.frequencyBinCount);
+		}
+		analyser.getFloatFrequencyData(dataRef.current);
+		lastUpdateRef.current = now;
+		frameRef.current = requestAnimationFrame(updateData);
 	}, []);
 
-	const startCapture = async () => {
+	const startCapture = useCallback(async () => {
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({
 				audio: {
@@ -47,55 +52,61 @@ export function useAudioCapture() {
 			const source = audioContext.createMediaStreamSource(stream);
 			const analyser = audioContext.createAnalyser();
 
-			analyser.fftSize = 2048;
+			analyser.fftSize = 256; // 进一步减小FFT大小
 			analyser.minDecibels = -100;
 			analyser.maxDecibels = 0;
-			analyser.smoothingTimeConstant = 0.85;
+			analyser.smoothingTimeConstant = 0.8;
 
-			const gainNode = audioContext.createGain();
-			gainNode.gain.value = 1.5;
+			source.connect(analyser);
 
-			source.connect(gainNode);
-			gainNode.connect(analyser);
+			analyserRef.current = analyser;
+			audioContextRef.current = audioContext;
+			setIsCapturing(true);
 
-			const updateData = () => {
-				const data = new Float32Array(analyser.frequencyBinCount);
-				analyser.getFloatFrequencyData(data);
-				setState(prev => ({ ...prev, audioData: data }));
-				animationFrameRef.current = requestAnimationFrame(updateData);
-			};
-
-			setState({
-				audioData: null,
-				analyser,
-				audioContext,
-				isCapturing: true,
-			});
-
+			lastUpdateRef.current = performance.now();
 			updateData();
 		} catch (error) {
 			console.error('Error starting audio capture:', error);
 		}
-	};
+	}, [updateData]);
 
-	const stopCapture = () => {
-		if (animationFrameRef.current) {
-			cancelAnimationFrame(animationFrameRef.current);
+	const stopCapture = useCallback(() => {
+		if (frameRef.current) {
+			cancelAnimationFrame(frameRef.current);
+			frameRef.current = undefined;
 		}
 		if (streamRef.current) {
 			streamRef.current.getTracks().forEach(track => track.stop());
+			streamRef.current = undefined;
 		}
-		state.audioContext?.close();
-		setState({
-			audioData: null,
-			analyser: null,
-			audioContext: null,
-			isCapturing: false,
-		});
-	};
+		if (audioContextRef.current) {
+			audioContextRef.current.close();
+			audioContextRef.current = undefined;
+		}
+		analyserRef.current = null;
+		dataRef.current = null;
+		setIsCapturing(false);
+	}, []);
+
+	useEffect(() => {
+		return () => {
+			if (frameRef.current) {
+				cancelAnimationFrame(frameRef.current);
+			}
+			if (streamRef.current) {
+				streamRef.current.getTracks().forEach(track => track.stop());
+			}
+			if (audioContextRef.current) {
+				audioContextRef.current.close();
+			}
+		};
+	}, []);
 
 	return {
-		...state,
+		audioData: dataRef.current,
+		analyser: analyserRef.current,
+		audioContext: audioContextRef.current,
+		isCapturing,
 		startCapture,
 		stopCapture,
 	};

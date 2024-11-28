@@ -61,7 +61,7 @@ function App() {
         <Content className="p-2">
           <Space direction="vertical" size={12} className="w-full">
             {/* 麦克风状态和音频特征 */}
-            <Card bordered={false} bodyStyle={{ padding: '8px', background: 'transparent' }}>
+            <Card bordered={false} styles={{ body: { padding: '8px', background: 'transparent' } }}>
               <div className="flex flex-col gap-4">
                 {/* 麦克风和频谱图 */}
                 <div className="flex items-center gap-4 h-12">
@@ -89,7 +89,7 @@ function App() {
             </Card>
 
             {/* 神经网络可视化 */}
-            <Card bordered={false} bodyStyle={{ padding: '8px', background: 'transparent' }}>
+            <Card bordered={false} styles={{ body: { padding: '8px', background: 'transparent' } }}>
               <NeuralNetworkViz
                 isProcessing={isProcessing}
                 mfccData={features}
@@ -97,7 +97,7 @@ function App() {
             </Card>
 
             {/* 分类结果可视化 */}
-            <Card bordered={false} bodyStyle={{ padding: '8px', background: 'transparent' }}>
+            <Card bordered={false} styles={{ body: { padding: '8px', background: 'transparent' } }}>
               <ErrorBoundary>
                 <CoughVisualization
                   features={features}
